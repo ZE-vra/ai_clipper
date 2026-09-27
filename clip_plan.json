@@ -1,0 +1,27 @@
+{
+  "source": {
+    "source_type": "youtube",
+    "location": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "title": "Test Video"
+  },
+  "selected_clips": [
+    {
+      "clip_id": 1,
+      "candidate_id": 69,
+      "snapped_start_time": 136.6,
+      "snapped_end_time": 177.96,
+      "final_score": 9.5,
+      "reason": "Strong standalone moment.",
+      "title": "We Know the Game"
+    },
+    {
+      "clip_id": 2,
+      "candidate_id": 27,
+      "snapped_start_time": 64.76,
+      "snapped_end_time": 101.72,
+      "final_score": 8.5,
+      "reason": "Strong buildup and payoff.",
+      "title": "Never Gonna Let You Down"
+    }
+  ]
+}
