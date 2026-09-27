@@ -33,6 +33,18 @@ from src.schemas import (
 )
 from src.planning.clip_planner import ClipPlanner
 
+from src.packaging.base import BasePackager
+from src.packaging.gemini_packager import (
+    GeminiPackager,
+    PackagingError,
+)
+from src.packaging.models import ClipPackaging
+from src.packaging.persistence import (
+    load_clip_packaging,
+    packaging_path,
+    save_clip_packaging,
+)
+
 
 class PipelineError(ClipperError):
     """Raised when pipeline orchestration fails."""
@@ -48,39 +60,72 @@ class PipelineOrchestrator:
         renderer: Optional[FFmpegRenderer] = None,
         youtube_source_provider: Optional[YouTubeSourceProvider] = None,
         local_source_provider: Optional[LocalSourceProvider] = None,
+        packager: Optional[BasePackager] = None,
     ):
         self.intelligence_engine = intelligence_engine
-        self.planner = planner if planner is not None else ClipPlanner()
-        self.renderer = renderer if renderer is not None else FFmpegRenderer()
+
+        self.planner = (
+            planner
+            if planner is not None
+            else ClipPlanner()
+        )
+
+        self.renderer = (
+            renderer
+            if renderer is not None
+            else FFmpegRenderer()
+        )
+
         self.youtube_source_provider = (
             youtube_source_provider
             if youtube_source_provider is not None
             else YouTubeSourceProvider()
         )
+
         self.local_source_provider = (
             local_source_provider
             if local_source_provider is not None
             else LocalSourceProvider()
         )
 
-    def run(self, source_location: str) -> list[FinalRenderedClip]:
-        workspace, was_existing = Config.get_or_create_workspace(source_location)
+        self.packager = (
+            packager
+            if packager is not None
+            else GeminiPackager()
+        )
+
+    def run(
+        self,
+        source_location: str,
+    ) -> list[FinalRenderedClip]:
+        workspace, was_existing = (
+            Config.get_or_create_workspace(
+                source_location
+            )
+        )
 
         source = self._ensure_source(
             source_location=source_location,
             workspace=workspace,
         )
 
-        state_checker = ArtifactStateChecker(workspace)
+        state_checker = ArtifactStateChecker(
+            workspace
+        )
 
         print()
         print("=" * 60)
         print("PIPELINE")
         print("=" * 60)
-        print(f"Project: {workspace.project_id}")
+        print(
+            f"Project: {workspace.project_id}"
+        )
 
         if was_existing:
-            print("Existing project detected. Checking checkpoints...")
+            print(
+                "Existing project detected. "
+                "Checking checkpoints..."
+            )
 
         transcript = self._ensure_transcript(
             source=source,
@@ -107,25 +152,34 @@ class PipelineOrchestrator:
             state_checker=state_checker,
         )
 
-        return self._ensure_rendered_clips(
+        return self._ensure_rendered_and_packaged_clips(
             source=source,
+            candidate_manifest=candidate_manifest,
             clip_manifest=clip_manifest,
             workspace=workspace,
         )
+
+    # ------------------------------------------------------------------
+    # Source
+    # ------------------------------------------------------------------
 
     def _ensure_source(
         self,
         source_location: str,
         workspace: ProjectWorkspace,
     ) -> VideoSource:
-        source_path = workspace.source_dir / "source.json"
+        source_path = (
+            workspace.source_dir / "source.json"
+        )
 
         if source_path.exists():
             return load_source(workspace)
 
         source_type = (
             "youtube"
-            if Config.is_youtube_url(source_location)
+            if Config.is_youtube_url(
+                source_location
+            )
             else "local"
         )
 
@@ -134,9 +188,16 @@ class PipelineOrchestrator:
             location=source_location,
         )
 
-        save_source(source, workspace)
+        save_source(
+            source,
+            workspace,
+        )
 
         return source
+
+    # ------------------------------------------------------------------
+    # Transcript
+    # ------------------------------------------------------------------
 
     def _ensure_transcript(
         self,
@@ -145,41 +206,68 @@ class PipelineOrchestrator:
         state_checker: ArtifactStateChecker,
     ):
         from src.ingestion.downloader import ingest_audio
-        from src.perception.whisper_engine import transcribe_audio
+        from src.perception.whisper_engine import (
+            transcribe_audio,
+        )
 
         state = state_checker.get_state()
 
         if state.transcript_exists:
-            print("Transcript checkpoint found. Loading...")
-            return load_transcript(workspace)
-
-        print("Transcription checkpoint missing. Running Whisper...")
-
-        # Transcript is an upstream dependency for every discovery/
-        # intelligence/planning/rendering artifact below it.
-        self._invalidate_from_candidates_downstream(workspace)
-
-        audio_path = workspace.audio_dir / "audio.mp3"
-
-        if not audio_path.exists():
-            print("Ingesting source audio...")
-
-            ingested_source, audio_path = ingest_audio(
-                source_location=source.location,
-                workspace=workspace,
+            print(
+                "Transcript checkpoint found. Loading..."
             )
 
-            source.source_type = ingested_source.source_type
-            source.location = ingested_source.location
-            source.title = ingested_source.title
+            return load_transcript(workspace)
 
-            save_source(source, workspace)
+        print(
+            "Transcription checkpoint missing. "
+            "Running Whisper..."
+        )
+
+        self._invalidate_from_candidates_downstream(
+            workspace
+        )
+
+        audio_path = (
+            workspace.audio_dir / "audio.mp3"
+        )
+
+        if not audio_path.exists():
+            print(
+                "Ingesting source audio..."
+            )
+
+            ingested_source, audio_path = (
+                ingest_audio(
+                    source_location=source.location,
+                    workspace=workspace,
+                )
+            )
+
+            source.source_type = (
+                ingested_source.source_type
+            )
+            source.location = (
+                ingested_source.location
+            )
+            source.title = (
+                ingested_source.title
+            )
+
+            save_source(
+                source,
+                workspace,
+            )
 
         return transcribe_audio(
             audio_path=audio_path,
             source=source,
             workspace=workspace,
         )
+
+    # ------------------------------------------------------------------
+    # Candidates
+    # ------------------------------------------------------------------
 
     def _ensure_candidates(
         self,
@@ -190,19 +278,31 @@ class PipelineOrchestrator:
         state = state_checker.get_state()
 
         if state.candidates_exists:
-            print("Candidate checkpoint found. Loading...")
-            return load_candidate_manifest(workspace)
+            print(
+                "Candidate checkpoint found. Loading..."
+            )
 
-        print("Candidate checkpoint missing. Generating candidates...")
+            return load_candidate_manifest(
+                workspace
+            )
 
-        # Candidates are upstream of evaluations, clip planning,
-        # source sections, and final rendered clips.
-        self._invalidate_from_evaluations_downstream(workspace)
+        print(
+            "Candidate checkpoint missing. "
+            "Generating candidates..."
+        )
+
+        self._invalidate_from_evaluations_downstream(
+            workspace
+        )
 
         return generate_candidate_windows(
             transcript=transcript,
             workspace=workspace,
         )
+
+    # ------------------------------------------------------------------
+    # Evaluations
+    # ------------------------------------------------------------------
 
     def _ensure_evaluations(
         self,
@@ -213,18 +313,27 @@ class PipelineOrchestrator:
         state = state_checker.get_state()
 
         if state.evaluations_exists:
-            print("Evaluation checkpoint found. Loading...")
-            return load_evaluation_manifest(workspace)
+            print(
+                "Evaluation checkpoint found. Loading..."
+            )
 
-        print("Evaluation checkpoint missing. Running Gemini...")
+            return load_evaluation_manifest(
+                workspace
+            )
 
-        # A regenerated evaluation can change which clips should be
-        # selected. Therefore the old plan and everything derived from
-        # that plan must not survive.
-        self._invalidate_from_clip_plan_downstream(workspace)
+        print(
+            "Evaluation checkpoint missing. "
+            "Running Gemini..."
+        )
 
-        evaluation_manifest = self.intelligence_engine.evaluate_candidates(
-            candidate_manifest
+        self._invalidate_from_clip_plan_downstream(
+            workspace
+        )
+
+        evaluation_manifest = (
+            self.intelligence_engine.evaluate_candidates(
+                candidate_manifest
+            )
         )
 
         save_evaluation_manifest(
@@ -233,6 +342,10 @@ class PipelineOrchestrator:
         )
 
         return evaluation_manifest
+
+    # ------------------------------------------------------------------
+    # Clip planning
+    # ------------------------------------------------------------------
 
     def _ensure_clip_plan(
         self,
@@ -244,14 +357,22 @@ class PipelineOrchestrator:
         state = state_checker.get_state()
 
         if state.clip_plan_exists:
-            print("Clip-plan checkpoint found. Loading...")
-            return load_clip_manifest(workspace)
+            print(
+                "Clip-plan checkpoint found. Loading..."
+            )
 
-        print("Clip-plan checkpoint missing. Planning clips...")
+            return load_clip_manifest(
+                workspace
+            )
 
-        # A regenerated clip plan changes the exact source ranges that
-        # must be acquired and rendered.
-        self._invalidate_render_artifacts(workspace)
+        print(
+            "Clip-plan checkpoint missing. "
+            "Planning clips..."
+        )
+
+        self._invalidate_render_artifacts(
+            workspace
+        )
 
         clip_manifest = self.planner.plan(
             candidate_manifest=candidate_manifest,
@@ -265,179 +386,456 @@ class PipelineOrchestrator:
 
         return clip_manifest
 
-    def _ensure_rendered_clips(
+    # ------------------------------------------------------------------
+    # Rendering + Packaging
+    # ------------------------------------------------------------------
+
+    def _ensure_rendered_and_packaged_clips(
         self,
         source: VideoSource,
+        candidate_manifest,
         clip_manifest,
         workspace: ProjectWorkspace,
-    ):
+    ) -> list[FinalRenderedClip]:
         rendered_clips = []
 
         for decision in clip_manifest.selected_clips:
-            title = decision.title or f"Clip {decision.clip_id}"
+            title = (
+                decision.title
+                or f"Clip {decision.clip_id}"
+            )
 
-            safe_title = ArtifactStateChecker._safe_filename(title)
+            safe_title = (
+                ArtifactStateChecker._safe_filename(
+                    title
+                )
+            )
 
             output_path = (
                 workspace.clips_dir
-                / f"clip_{decision.clip_id:02d}_{safe_title}.mp4"
+                / (
+                    f"clip_{decision.clip_id:02d}_"
+                    f"{safe_title}.mp4"
+                )
             )
 
-            if output_path.exists():
-                print()
-                print(
-                    f"Existing rendered clip "
-                    f"{decision.clip_id} found."
-                )
-                print("Validating existing output...")
-
-                try:
-                    self.renderer.validate_media(output_path)
-
-                except RenderingError:
-                    print(
-                        f"Existing clip {decision.clip_id} "
-                        "failed validation."
-                    )
-                    print(
-                        "Removing invalid output and re-rendering..."
-                    )
-
-                    if output_path.exists():
-                        output_path.unlink()
-
-                else:
-                    print(
-                        f"Rendered clip {decision.clip_id} "
-                        "is valid. Skipping."
-                    )
-
-                    rendered_clips.append(
-                        FinalRenderedClip(
-                            clip_id=decision.clip_id,
-                            file_path=str(output_path),
-                            title=title,
-                        )
-                    )
-
-                    continue
-
-            acquired_path = (
-                workspace.source_dir
-                / f"section_{decision.clip_id:02d}.mp4"
-            )
-
-            # A source section is derived from the current clip plan.
-            # If it exists, validate it before trusting it.
-            if acquired_path.exists():
-                print()
-                print(
-                    f"Existing source section for clip "
-                    f"{decision.clip_id} found."
-                )
-                print("Validating existing source section...")
-
-                try:
-                    self.youtube_source_provider.validate_media(
-                        acquired_path
-                    )
-                except Exception:
-                    try:
-                        self.local_source_provider.validate_media(
-                            acquired_path
-                        )
-                    except Exception:
-                        print(
-                            "Existing source section failed validation."
-                        )
-                        print(
-                            "Removing invalid source section "
-                            "and reacquiring..."
-                        )
-
-                        if acquired_path.exists():
-                            acquired_path.unlink()
-
-            if not acquired_path.exists():
-                print()
-                print(
-                    f"Acquiring source section for clip "
-                    f"{decision.clip_id}..."
-                )
-                print(
-                    f"Range: "
-                    f"{decision.snapped_start_time:.2f}s → "
-                    f"{decision.snapped_end_time:.2f}s"
-                )
-
-                try:
-                    if source.source_type == "youtube":
-                        source_path = (
-                            self.youtube_source_provider.acquire_section(
-                                source_url=source.location,
-                                output_path=acquired_path,
-                                start_time=decision.snapped_start_time,
-                                end_time=decision.snapped_end_time,
-                            )
-                        )
-
-                    elif source.source_type == "local":
-                        source_path = (
-                            self.local_source_provider.acquire_section(
-                                source_path=Path(source.location),
-                                output_path=acquired_path,
-                                start_time=decision.snapped_start_time,
-                                end_time=decision.snapped_end_time,
-                            )
-                        )
-
-                    else:
-                        raise PipelineError(
-                            f"Unsupported source type: "
-                            f"{source.source_type}"
-                        )
-
-                except SourceAcquisitionError as exc:
-                    raise PipelineError(
-                        f"Could not acquire source section for "
-                        f"clip {decision.clip_id}:\n{exc}"
-                    ) from exc
-
-            else:
-                source_path = acquired_path
-
-            print(f"Rendering clip {decision.clip_id}...")
-
-            try:
-                rendered_path = self.renderer.render_clip(
-                    source_path=source_path,
+            output_path = (
+                self._ensure_rendered_clip(
+                    source=source,
+                    decision=decision,
                     output_path=output_path,
-                    start_time=0.0,
-                    end_time=decision.duration,
+                    workspace=workspace,
                 )
-
-            except RenderingError as exc:
-                raise PipelineError(
-                    f"Could not render clip {decision.clip_id}:\n{exc}"
-                ) from exc
+            )
 
             rendered_clips.append(
                 FinalRenderedClip(
                     clip_id=decision.clip_id,
-                    file_path=str(rendered_path),
+                    file_path=str(output_path),
                     title=title,
                 )
             )
 
+            self._ensure_packaging(
+                decision=decision,
+                candidate_manifest=candidate_manifest,
+                source=source,
+                workspace=workspace,
+            )
+
         return rendered_clips
+
+    def _ensure_rendered_clip(
+        self,
+        source: VideoSource,
+        decision,
+        output_path: Path,
+        workspace: ProjectWorkspace,
+    ) -> Path:
+        if output_path.exists():
+            print()
+            print(
+                f"Existing rendered clip "
+                f"{decision.clip_id} found."
+            )
+
+            print(
+                "Validating existing output..."
+            )
+
+            try:
+                self.renderer.validate_media(
+                    output_path
+                )
+
+            except RenderingError:
+                print(
+                    f"Existing clip "
+                    f"{decision.clip_id} "
+                    "failed validation."
+                )
+
+                print(
+                    "Removing invalid output "
+                    "and re-rendering..."
+                )
+
+                self._delete_file(
+                    output_path
+                )
+
+            else:
+                print(
+                    f"Rendered clip "
+                    f"{decision.clip_id} "
+                    "is valid. Skipping rendering."
+                )
+
+                return output_path
+
+        acquired_path = (
+            workspace.source_dir
+            / (
+                f"section_"
+                f"{decision.clip_id:02d}.mp4"
+            )
+        )
+
+        acquired_path = (
+            self._ensure_source_section(
+                source=source,
+                decision=decision,
+                acquired_path=acquired_path,
+            )
+        )
+
+        print(
+            f"Rendering clip "
+            f"{decision.clip_id}..."
+        )
+
+        try:
+            rendered_path = (
+                self.renderer.render_clip(
+                    source_path=acquired_path,
+                    output_path=output_path,
+                    start_time=0.0,
+                    end_time=decision.duration,
+                )
+            )
+
+        except RenderingError as exc:
+            raise PipelineError(
+                f"Could not render clip "
+                f"{decision.clip_id}:\n{exc}"
+            ) from exc
+
+        return rendered_path
+
+    def _ensure_source_section(
+        self,
+        source: VideoSource,
+        decision,
+        acquired_path: Path,
+    ) -> Path:
+        if acquired_path.exists():
+            print()
+            print(
+                f"Existing source section for clip "
+                f"{decision.clip_id} found."
+            )
+
+            print(
+                "Validating existing source section..."
+            )
+
+            if self._validate_source_section(
+                acquired_path
+            ):
+                print(
+                    "Source section is valid. "
+                    "Skipping acquisition."
+                )
+
+                return acquired_path
+
+            print(
+                "Existing source section failed "
+                "validation."
+            )
+
+            print(
+                "Removing invalid source section "
+                "and reacquiring..."
+            )
+
+            self._delete_file(
+                acquired_path
+            )
+
+        print()
+        print(
+            f"Acquiring source section for clip "
+            f"{decision.clip_id}..."
+        )
+
+        print(
+            f"Range: "
+            f"{decision.snapped_start_time:.2f}s "
+            f"-> "
+            f"{decision.snapped_end_time:.2f}s"
+        )
+
+        try:
+            if source.source_type == "youtube":
+                source_path = (
+                    self.youtube_source_provider.acquire_section(
+                        source_url=source.location,
+                        output_path=acquired_path,
+                        start_time=(
+                            decision.snapped_start_time
+                        ),
+                        end_time=(
+                            decision.snapped_end_time
+                        ),
+                    )
+                )
+
+            elif source.source_type == "local":
+                source_path = (
+                    self.local_source_provider.acquire_section(
+                        source_path=Path(
+                            source.location
+                        ),
+                        output_path=acquired_path,
+                        start_time=(
+                            decision.snapped_start_time
+                        ),
+                        end_time=(
+                            decision.snapped_end_time
+                        ),
+                    )
+                )
+
+            else:
+                raise PipelineError(
+                    f"Unsupported source type: "
+                    f"{source.source_type}"
+                )
+
+        except SourceAcquisitionError as exc:
+            raise PipelineError(
+                f"Could not acquire source section "
+                f"for clip "
+                f"{decision.clip_id}:\n{exc}"
+            ) from exc
+
+        return source_path
+
+    def _validate_source_section(
+        self,
+        acquired_path: Path,
+    ) -> bool:
+        try:
+            self.youtube_source_provider.validate_media(
+                acquired_path
+            )
+
+            return True
+
+        except Exception:
+            pass
+
+        try:
+            self.local_source_provider.validate_media(
+                acquired_path
+            )
+
+            return True
+
+        except Exception:
+            return False
+
+    # ------------------------------------------------------------------
+    # Packaging
+    # ------------------------------------------------------------------
+
+    def _ensure_packaging(
+        self,
+        decision,
+        candidate_manifest,
+        source: VideoSource,
+        workspace: ProjectWorkspace,
+    ) -> ClipPackaging:
+        path = packaging_path(
+            workspace,
+            decision.clip_id,
+        )
+
+        if path.exists():
+            print()
+            print(
+                f"Existing packaging for clip "
+                f"{decision.clip_id} found."
+            )
+
+            print(
+                "Validating packaging checkpoint..."
+            )
+
+            try:
+                packaging = load_clip_packaging(
+                    workspace,
+                    decision.clip_id,
+                )
+
+            except Exception:
+                print(
+                    "Packaging checkpoint is invalid."
+                )
+
+                print(
+                    "Removing invalid packaging "
+                    "and regenerating..."
+                )
+
+                self._delete_file(path)
+
+            else:
+                print(
+                    f"Packaging for clip "
+                    f"{decision.clip_id} "
+                    "is valid. Skipping."
+                )
+
+                return packaging
+
+        transcript_text = (
+            self._get_candidate_transcript(
+                decision=decision,
+                candidate_manifest=candidate_manifest,
+            )
+        )
+
+        source_title = (
+            source.title
+            or source.location
+        )
+
+        print()
+        print(
+            f"Packaging clip "
+            f"{decision.clip_id} with Gemini..."
+        )
+
+        try:
+            data = self.packager.package_clip(
+                clip=decision,
+                transcript_text=transcript_text,
+                source_title=source_title,
+            )
+
+            packaging = ClipPackaging(
+                clip_id=decision.clip_id,
+                title=str(data["title"]),
+                hook=str(data["hook"]),
+                caption=str(data["caption"]),
+                description=str(
+                    data["description"]
+                ),
+                thumbnail_text=str(
+                    data["thumbnail_text"]
+                ),
+                content_angle=str(
+                    data["content_angle"]
+                ),
+                hashtags=[
+                    str(hashtag)
+                    for hashtag in data.get(
+                        "hashtags",
+                        [],
+                    )
+                ],
+            )
+
+            save_clip_packaging(
+                packaging,
+                workspace,
+            )
+
+        except PackagingError as exc:
+            raise PipelineError(
+                f"Could not package clip "
+                f"{decision.clip_id}:\n{exc}"
+            ) from exc
+
+        except KeyError as exc:
+            raise PipelineError(
+                f"Packaging response for clip "
+                f"{decision.clip_id} "
+                f"is missing required field: "
+                f"{exc}"
+            ) from exc
+
+        except (TypeError, ValueError) as exc:
+            raise PipelineError(
+                f"Packaging response for clip "
+                f"{decision.clip_id} "
+                f"contains invalid data:\n{exc}"
+            ) from exc
+
+        print(
+            f"Packaging saved for clip "
+            f"{decision.clip_id}."
+        )
+
+        return packaging
+
+    @staticmethod
+    def _get_candidate_transcript(
+        decision,
+        candidate_manifest,
+    ) -> str:
+        for candidate in (
+            candidate_manifest.candidates
+        ):
+            if (
+                candidate.candidate_id
+                == decision.candidate_id
+            ):
+                transcript_text = (
+                    candidate.transcript_text
+                )
+
+                if not transcript_text.strip():
+                    raise PipelineError(
+                        f"Candidate "
+                        f"{decision.candidate_id} "
+                        f"has no transcript text. "
+                        f"Cannot package clip "
+                        f"{decision.clip_id}."
+                    )
+
+                return transcript_text
+
+        raise PipelineError(
+            f"Could not find candidate "
+            f"{decision.candidate_id} "
+            f"for clip "
+            f"{decision.clip_id}. "
+            "Packaging cannot continue."
+        )
 
     # ------------------------------------------------------------------
     # Artifact invalidation
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _delete_file(path: Path) -> None:
+    def _delete_file(
+        path: Path,
+    ) -> None:
         """Delete a single artifact if it exists."""
+
         if path.exists():
             path.unlink()
 
@@ -462,12 +860,17 @@ class PipelineOrchestrator:
             source sections
                 ↓
             rendered clips
+                ↓
+            packaging
         """
 
-        cls._invalidate_from_evaluations_downstream(workspace)
+        cls._invalidate_from_evaluations_downstream(
+            workspace
+        )
 
         cls._delete_file(
-            workspace.candidates_dir / "candidates.json"
+            workspace.candidates_dir
+            / "candidates.json"
         )
 
     @classmethod
@@ -476,16 +879,21 @@ class PipelineOrchestrator:
         workspace: ProjectWorkspace,
     ) -> None:
         """
-        Invalidate everything downstream of candidate generation.
+        Invalidate everything downstream of
+        candidate generation.
 
-        Candidates can change which evaluations are valid, which can
-        change the clip plan and therefore all acquired/rendered media.
+        Candidates can change which evaluations
+        are valid, which can change the clip plan,
+        rendering, and packaging.
         """
 
-        cls._invalidate_from_clip_plan_downstream(workspace)
+        cls._invalidate_from_clip_plan_downstream(
+            workspace
+        )
 
         cls._delete_file(
-            workspace.evaluations_dir / "evaluations.json"
+            workspace.evaluations_dir
+            / "evaluations.json"
         )
 
     @classmethod
@@ -494,18 +902,23 @@ class PipelineOrchestrator:
         workspace: ProjectWorkspace,
     ) -> None:
         """
-        Invalidate everything derived from the clip plan.
+        Invalidate everything derived from the
+        clip plan.
 
-        If the evaluation changes, the selected clips may change.
-        Therefore the old plan, source sections, and final renders
-        cannot be trusted.
+        If the evaluation changes, the selected
+        clips may change. Therefore the old plan,
+        source sections, rendered clips, and
+        packaging cannot be trusted.
         """
 
         cls._delete_file(
-            workspace.evaluations_dir / "clip_plan.json"
+            workspace.evaluations_dir
+            / "clip_plan.json"
         )
 
-        cls._invalidate_render_artifacts(workspace)
+        cls._invalidate_render_artifacts(
+            workspace
+        )
 
     @classmethod
     def _invalidate_render_artifacts(
@@ -513,20 +926,36 @@ class PipelineOrchestrator:
         workspace: ProjectWorkspace,
     ) -> None:
         """
-        Remove media derived from the current clip plan.
-
-        Source sections and final rendered clips are both disposable
-        derived artifacts. They will be regenerated from the new plan.
+        Remove media and packaging derived from
+        the current clip plan.
         """
 
         if workspace.source_dir.exists():
-            for section_path in workspace.source_dir.glob(
-                "section_*.mp4"
+            for section_path in (
+                workspace.source_dir.glob(
+                    "section_*.mp4"
+                )
             ):
-                cls._delete_file(section_path)
+                cls._delete_file(
+                    section_path
+                )
 
         if workspace.clips_dir.exists():
-            for clip_path in workspace.clips_dir.glob(
-                "*.mp4"
+            for clip_path in (
+                workspace.clips_dir.glob(
+                    "*.mp4"
+                )
             ):
-                cls._delete_file(clip_path)
+                cls._delete_file(
+                    clip_path
+                )
+
+        if workspace.packaging_dir.exists():
+            for packaging_path_item in (
+                workspace.packaging_dir.glob(
+                    "clip_*.json"
+                )
+            ):
+                cls._delete_file(
+                    packaging_path_item
+                )

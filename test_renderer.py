@@ -1,15 +1,26 @@
-from pathlib import Path
+import pytest
 
-from src.rendering.ffmpeg_renderer import FFmpegRenderer
-
-
-renderer = FFmpegRenderer()
-
-output = renderer.render_clip(
-    source_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    output_path=Path("test_renderer_clip_2.mp4"),
-    start_time=136.60,
-    end_time=146.60,
+from src.rendering.ffmpeg_renderer import (
+    FFmpegRenderer,
+    RenderingError,
 )
 
-print(f"\nCreated: {output}")
+
+def test_renderer_rejects_missing_source(tmp_path):
+    renderer = FFmpegRenderer()
+
+    missing_source = (
+        tmp_path / "missing_source.mp4"
+    )
+
+    output_path = (
+        tmp_path / "output.mp4"
+    )
+
+    with pytest.raises(RenderingError):
+        renderer.render_clip(
+            source_path=missing_source,
+            output_path=output_path,
+            start_time=0.0,
+            end_time=10.0,
+        )

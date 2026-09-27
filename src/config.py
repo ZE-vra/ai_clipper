@@ -17,11 +17,10 @@ class ProjectWorkspace:
     candidates_dir: Path
     evaluations_dir: Path
     clips_dir: Path
+    packaging_dir: Path
     logs_dir: Path
 
     def initialize(self) -> None:
-        """Create all directories required by the project."""
-
         directories = [
             self.root_dir,
             self.source_dir,
@@ -30,6 +29,7 @@ class ProjectWorkspace:
             self.candidates_dir,
             self.evaluations_dir,
             self.clips_dir,
+            self.packaging_dir,
             self.logs_dir,
         ]
 
@@ -51,16 +51,12 @@ class Config:
 
     @staticmethod
     def is_youtube_url(location: str) -> bool:
-        """Return True when the location has a recognized YouTube hostname."""
-
         try:
             parsed = urlparse(location)
         except ValueError:
             return False
 
-        hostname = (
-            parsed.hostname or ""
-        ).lower()
+        hostname = (parsed.hostname or "").lower()
 
         return hostname in {
             "youtube.com",
@@ -75,49 +71,28 @@ class Config:
         cls,
         url: str,
     ) -> str | None:
-        """
-        Extract a YouTube video ID without making a network request.
-
-        Supports common forms such as:
-
-            https://www.youtube.com/watch?v=VIDEO_ID
-            https://youtu.be/VIDEO_ID
-            https://www.youtube.com/shorts/VIDEO_ID
-            https://www.youtube.com/embed/VIDEO_ID
-            https://www.youtube.com/live/VIDEO_ID
-        """
-
         try:
             parsed = urlparse(url)
         except ValueError:
             return None
 
-        hostname = (
-            parsed.hostname or ""
-        ).lower()
+        hostname = (parsed.hostname or "").lower()
 
         if hostname in {
             "youtu.be",
             "www.youtu.be",
         }:
-            video_id = (
-                parsed.path
-                .strip("/")
-                .split("/")[0]
-            )
+            video_id = parsed.path.strip("/").split("/")[0]
 
         elif hostname in {
             "youtube.com",
             "www.youtube.com",
             "m.youtube.com",
         }:
-            query = parse_qs(
-                parsed.query
-            )
+            query = parse_qs(parsed.query)
 
             if query.get("v"):
                 video_id = query["v"][0]
-
             else:
                 path_parts = [
                     part
@@ -127,14 +102,10 @@ class Config:
 
                 if (
                     len(path_parts) >= 2
-                    and path_parts[0] in {
-                        "shorts",
-                        "embed",
-                        "live",
-                    }
+                    and path_parts[0]
+                    in {"shorts", "embed", "live"}
                 ):
                     video_id = path_parts[1]
-
                 else:
                     return None
 
@@ -157,35 +128,20 @@ class Config:
         cls,
         source_location: str,
     ) -> tuple[str, str]:
-        """
-        Return:
-
-            (stable_project_id, normalized_source_identity)
-
-        The identity is deterministic, so repeated executions of the
-        same source resolve to the same workspace.
-        """
-
-        if cls.is_youtube_url(
-            source_location
-        ):
+        if cls.is_youtube_url(source_location):
             video_id = cls.get_youtube_video_id(
                 source_location
             )
 
             if video_id:
-                project_id = (
-                    f"youtube_{video_id}"
-                )
+                project_id = f"youtube_{video_id}"
 
                 return (
                     project_id,
                     f"youtube:{video_id}",
                 )
 
-            normalized = (
-                source_location.strip()
-            )
+            normalized = source_location.strip()
 
             digest = hashlib.sha256(
                 normalized.encode("utf-8")
@@ -200,9 +156,7 @@ class Config:
             source_location
         ).resolve()
 
-        normalized = str(
-            local_path
-        ).lower()
+        normalized = str(local_path).lower()
 
         digest = hashlib.sha256(
             normalized.encode("utf-8")
@@ -233,8 +187,6 @@ class Config:
         cls,
         project_id: str,
     ) -> ProjectWorkspace:
-        """Build a workspace object for an existing project ID."""
-
         project_dir = (
             cls.PROJECTS_ROOT / project_id
         )
@@ -248,6 +200,7 @@ class Config:
             candidates_dir=project_dir / "candidates",
             evaluations_dir=project_dir / "evaluations",
             clips_dir=project_dir / "clips",
+            packaging_dir=project_dir / "packaging",
             logs_dir=project_dir / "logs",
         )
 
@@ -256,12 +209,6 @@ class Config:
         cls,
         identifier: str,
     ) -> ProjectWorkspace:
-        """
-        Create or reuse the deterministic workspace for a source.
-
-        This method is intentionally idempotent.
-        """
-
         project_id, _ = cls.source_identity(
             identifier
         )
@@ -279,8 +226,6 @@ class Config:
         cls,
         source_location: str,
     ) -> ProjectWorkspace | None:
-        """Return the existing workspace for a source, if one exists."""
-
         project_id, _ = cls.source_identity(
             source_location
         )
@@ -299,14 +244,6 @@ class Config:
         cls,
         workspace: ProjectWorkspace,
     ) -> bool:
-        """
-        Return True when the workspace contains evidence that the
-        pipeline has actually started.
-
-        An empty directory is not considered an existing pipeline
-        project.
-        """
-
         artifact_paths = [
             workspace.audio_dir / "audio.mp3",
             workspace.transcript_dir / "transcript.json",
@@ -321,26 +258,23 @@ class Config:
         ):
             return True
 
-        return any(
+        if any(
             workspace.clips_dir.glob("*.mp4")
-        )
+        ):
+            return True
+
+        if any(
+            workspace.packaging_dir.glob("*.json")
+        ):
+            return True
+
+        return False
 
     @classmethod
     def get_or_create_workspace(
         cls,
         source_location: str,
     ) -> tuple[ProjectWorkspace, bool]:
-        """
-        Return:
-
-            (workspace, True)
-                when an actual pipeline project already exists.
-
-            (workspace, False)
-                when the workspace is new or only an empty directory
-                exists.
-        """
-
         existing = cls.find_workspace(
             source_location
         )
