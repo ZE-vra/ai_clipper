@@ -33,6 +33,12 @@ from src.schemas import (
 )
 from src.planning.clip_planner import ClipPlanner
 
+from src.editing.planning.editing_planner import EditingPlanner
+from src.editing.rendering.editing_renderer import (
+    EditingRenderer,
+    EditingRenderingError,
+)
+
 from src.packaging.base import BasePackager
 from src.packaging.gemini_packager import (
     GeminiPackager,
@@ -61,6 +67,8 @@ class PipelineOrchestrator:
         youtube_source_provider: Optional[YouTubeSourceProvider] = None,
         local_source_provider: Optional[LocalSourceProvider] = None,
         packager: Optional[BasePackager] = None,
+        editing_planner: Optional[EditingPlanner] = None,
+        editing_renderer: Optional[EditingRenderer] = None,
     ):
         self.intelligence_engine = intelligence_engine
 
@@ -92,6 +100,18 @@ class PipelineOrchestrator:
             packager
             if packager is not None
             else GeminiPackager()
+        )
+
+        self.editing_planner = (
+            editing_planner
+            if editing_planner is not None
+            else EditingPlanner()
+        )
+
+        self.editing_renderer = (
+            editing_renderer
+            if editing_renderer is not None
+            else EditingRenderer()
         )
 
     def run(
@@ -154,6 +174,7 @@ class PipelineOrchestrator:
 
         return self._ensure_rendered_and_packaged_clips(
             source=source,
+            transcript=transcript,
             candidate_manifest=candidate_manifest,
             clip_manifest=clip_manifest,
             workspace=workspace,
@@ -387,12 +408,13 @@ class PipelineOrchestrator:
         return clip_manifest
 
     # ------------------------------------------------------------------
-    # Rendering + Packaging
+    # Rendering + Editing + Packaging
     # ------------------------------------------------------------------
 
     def _ensure_rendered_and_packaged_clips(
         self,
         source: VideoSource,
+        transcript,
         candidate_manifest,
         clip_manifest,
         workspace: ProjectWorkspace,
@@ -405,25 +427,23 @@ class PipelineOrchestrator:
                 or f"Clip {decision.clip_id}"
             )
 
-            safe_title = (
-                ArtifactStateChecker._safe_filename(
-                    title
+            state_checker = ArtifactStateChecker(
+                workspace
+            )
+
+            final_output_path = (
+                state_checker.final_clip_path(
+                    clip_id=decision.clip_id,
+                    title=title,
                 )
             )
 
-            output_path = (
-                workspace.clips_dir
-                / (
-                    f"clip_{decision.clip_id:02d}_"
-                    f"{safe_title}.mp4"
-                )
-            )
-
-            output_path = (
-                self._ensure_rendered_clip(
+            final_output_path = (
+                self._ensure_edited_clip(
                     source=source,
+                    transcript=transcript,
                     decision=decision,
-                    output_path=output_path,
+                    output_path=final_output_path,
                     workspace=workspace,
                 )
             )
@@ -431,7 +451,9 @@ class PipelineOrchestrator:
             rendered_clips.append(
                 FinalRenderedClip(
                     clip_id=decision.clip_id,
-                    file_path=str(output_path),
+                    file_path=str(
+                        final_output_path
+                    ),
                     title=title,
                 )
             )
@@ -445,7 +467,142 @@ class PipelineOrchestrator:
 
         return rendered_clips
 
-    def _ensure_rendered_clip(
+    def _ensure_edited_clip(
+        self,
+        source: VideoSource,
+        transcript,
+        decision,
+        output_path: Path,
+        workspace: ProjectWorkspace,
+    ) -> Path:
+        state_checker = ArtifactStateChecker(
+            workspace
+        )
+
+        base_render_path = (
+            state_checker.base_render_path(
+                decision.clip_id
+            )
+        )
+
+        if output_path.exists():
+            print()
+            print(
+                f"Existing final clip "
+                f"{decision.clip_id} found."
+            )
+
+            print(
+                "Validating existing final output..."
+            )
+
+            final_valid = False
+
+            try:
+                self.editing_renderer.validate_media(
+                    output_path
+                )
+            except EditingRenderingError:
+                print(
+                    f"Existing final clip "
+                    f"{decision.clip_id} "
+                    "failed validation."
+                )
+            else:
+                final_valid = True
+
+            if final_valid and base_render_path.exists():
+                try:
+                    self.renderer.validate_media(
+                        base_render_path
+                    )
+                except RenderingError:
+                    print(
+                        f"Base render for clip "
+                        f"{decision.clip_id} "
+                        "failed validation."
+                    )
+
+                    print(
+                        "The final clip will be rebuilt "
+                        "from a fresh base render."
+                    )
+                else:
+                    print(
+                        f"Final clip "
+                        f"{decision.clip_id} "
+                        "is valid. Skipping editing."
+                    )
+
+                    return output_path
+
+            print(
+                f"Removing stale final clip "
+                f"{decision.clip_id}..."
+            )
+
+            self._delete_file(
+                output_path
+            )
+
+        base_render_path = (
+            self._ensure_base_render(
+                source=source,
+                decision=decision,
+                output_path=base_render_path,
+                workspace=workspace,
+            )
+        )
+
+        print()
+        print(
+            f"Planning edits for clip "
+            f"{decision.clip_id}..."
+        )
+
+        try:
+            editing_plan = (
+                self.editing_planner.create_plan(
+                    clip_id=(
+                        f"clip_{decision.clip_id:02d}"
+                    ),
+                    transcript=transcript,
+                    clip_start_time=(
+                        decision.snapped_start_time
+                    ),
+                    clip_end_time=(
+                        decision.snapped_end_time
+                    ),
+                )
+            )
+
+        except (TypeError, ValueError) as exc:
+            raise PipelineError(
+                f"Could not create editing plan "
+                f"for clip "
+                f"{decision.clip_id}:\n{exc}"
+            ) from exc
+
+        print()
+        print(
+            f"Rendering edited clip "
+            f"{decision.clip_id}..."
+        )
+
+        try:
+            return self.editing_renderer.render(
+                source_path=base_render_path,
+                output_path=output_path,
+                plan=editing_plan,
+            )
+
+        except EditingRenderingError as exc:
+            raise PipelineError(
+                f"Could not render edited clip "
+                f"{decision.clip_id}:\n{exc}"
+            ) from exc
+
+    def _ensure_base_render(
         self,
         source: VideoSource,
         decision,
@@ -455,12 +612,12 @@ class PipelineOrchestrator:
         if output_path.exists():
             print()
             print(
-                f"Existing rendered clip "
+                f"Existing base render for clip "
                 f"{decision.clip_id} found."
             )
 
             print(
-                "Validating existing output..."
+                "Validating existing base render..."
             )
 
             try:
@@ -470,14 +627,14 @@ class PipelineOrchestrator:
 
             except RenderingError:
                 print(
-                    f"Existing clip "
+                    f"Existing base render "
                     f"{decision.clip_id} "
                     "failed validation."
                 )
 
                 print(
-                    "Removing invalid output "
-                    "and re-rendering..."
+                    "Removing invalid base render "
+                    "and rebuilding..."
                 )
 
                 self._delete_file(
@@ -486,9 +643,9 @@ class PipelineOrchestrator:
 
             else:
                 print(
-                    f"Rendered clip "
+                    f"Base render "
                     f"{decision.clip_id} "
-                    "is valid. Skipping rendering."
+                    "is valid. Skipping base render."
                 )
 
                 return output_path
@@ -510,7 +667,7 @@ class PipelineOrchestrator:
         )
 
         print(
-            f"Rendering clip "
+            f"Rendering base clip "
             f"{decision.clip_id}..."
         )
 
@@ -526,7 +683,7 @@ class PipelineOrchestrator:
 
         except RenderingError as exc:
             raise PipelineError(
-                f"Could not render clip "
+                f"Could not render base clip "
                 f"{decision.clip_id}:\n{exc}"
             ) from exc
 
@@ -859,7 +1016,9 @@ class PipelineOrchestrator:
                 ↓
             source sections
                 ↓
-            rendered clips
+            base renders
+                ↓
+            edited final clips
                 ↓
             packaging
         """
@@ -884,7 +1043,7 @@ class PipelineOrchestrator:
 
         Candidates can change which evaluations
         are valid, which can change the clip plan,
-        rendering, and packaging.
+        rendering, editing, and packaging.
         """
 
         cls._invalidate_from_clip_plan_downstream(
@@ -907,8 +1066,8 @@ class PipelineOrchestrator:
 
         If the evaluation changes, the selected
         clips may change. Therefore the old plan,
-        source sections, rendered clips, and
-        packaging cannot be trusted.
+        source sections, base renders, edited clips,
+        and packaging cannot be trusted.
         """
 
         cls._delete_file(
@@ -938,6 +1097,16 @@ class PipelineOrchestrator:
             ):
                 cls._delete_file(
                     section_path
+                )
+
+        if workspace.renders_dir.exists():
+            for render_path in (
+                workspace.renders_dir.glob(
+                    "*.mp4"
+                )
+            ):
+                cls._delete_file(
+                    render_path
                 )
 
         if workspace.clips_dir.exists():

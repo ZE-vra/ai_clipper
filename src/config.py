@@ -20,6 +20,17 @@ class ProjectWorkspace:
     packaging_dir: Path
     logs_dir: Path
 
+    @property
+    def renders_dir(self) -> Path:
+        """
+        Internal directory for pre-editing/base renders.
+
+        This is derived from root_dir rather than stored as a
+        constructor field so older ProjectWorkspace callers remain
+        backwards-compatible.
+        """
+        return self.root_dir / "renders"
+
     def initialize(self) -> None:
         directories = [
             self.root_dir,
@@ -28,6 +39,7 @@ class ProjectWorkspace:
             self.transcript_dir,
             self.candidates_dir,
             self.evaluations_dir,
+            self.renders_dir,
             self.clips_dir,
             self.packaging_dir,
             self.logs_dir,
@@ -255,6 +267,11 @@ class Config:
         if any(
             path.exists()
             for path in artifact_paths
+        ):
+            return True
+
+        if any(
+            workspace.renders_dir.glob("*.mp4")
         ):
             return True
 

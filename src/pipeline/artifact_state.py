@@ -92,7 +92,16 @@ class ArtifactStateChecker:
             clip_plan_exists=self.clip_plan_path.exists(),
         )
 
-    def rendered_clip_path(
+    def base_render_path(
+        self,
+        clip_id: int,
+    ) -> Path:
+        return (
+            self.workspace.renders_dir
+            / f"clip_{clip_id:02d}.mp4"
+        )
+
+    def final_clip_path(
         self,
         clip_id: int,
         title: str,
@@ -103,7 +112,25 @@ class ArtifactStateChecker:
 
         return (
             self.workspace.clips_dir
-            / f"clip_{clip_id:02d}_{safe_title}.mp4"
+            / (
+                f"clip_{clip_id:02d}_"
+                f"{safe_title}.mp4"
+            )
+        )
+
+    def rendered_clip_path(
+        self,
+        clip_id: int,
+        title: str,
+    ) -> Path:
+        """
+        Backward-compatible alias for the final clip path.
+
+        The final public/social clip still lives under clips/.
+        """
+        return self.final_clip_path(
+            clip_id=clip_id,
+            title=title,
         )
 
     @staticmethod
