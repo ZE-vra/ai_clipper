@@ -32,6 +32,16 @@ def test_caption_planner_creates_caption_segments():
 
     assert plan.enabled is True
     assert plan.style is not None
+    assert plan.style.font_size == 54
+    assert plan.style.font_name == "Arial"
+    assert plan.style.font_weight == "bold"
+    assert plan.style.horizontal_alignment == "center"
+    assert plan.style.vertical_position == "lower_middle"
+    assert plan.style.horizontal_margin == 80
+    assert plan.style.vertical_margin == 500
+    assert plan.style.max_lines == 2
+    assert plan.style.outline_width == 4
+    assert plan.style.shadow is True
     assert plan.segments
 
     assert plan.segments[0].start_time == 0.0

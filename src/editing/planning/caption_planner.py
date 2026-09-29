@@ -13,6 +13,9 @@ class CaptionPlanner:
 
     When a clip range is supplied, timestamps are converted so
     the selected clip begins at 0.0 seconds.
+
+    Caption content and timing remain deterministic and are derived
+    directly from the Whisper transcript.
     """
 
     def __init__(
@@ -99,8 +102,13 @@ class CaptionPlanner:
                 font_size=54,
                 font_name="Arial",
                 font_weight="bold",
-                position="center",
+                horizontal_alignment="center",
+                vertical_position="lower_middle",
+                horizontal_margin=80,
+                vertical_margin=500,
                 max_lines=self.max_lines,
+                outline_width=4,
+                shadow=True,
             ),
             enabled=True,
         )

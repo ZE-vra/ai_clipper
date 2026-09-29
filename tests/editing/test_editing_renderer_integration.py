@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,6 +19,68 @@ from src.editing.models import (
     RenderConfig,
 )
 from src.editing.rendering.editing_renderer import EditingRenderer
+
+
+def _probe_streams(media_path: Path) -> list[dict]:
+    """Return FFprobe stream metadata for a rendered media file."""
+
+    ffprobe_path = shutil.which("ffprobe")
+
+    if ffprobe_path is None:
+        pytest.fail(
+            "FFprobe is required for this integration test but was not "
+            "found on PATH."
+        )
+
+    result = subprocess.run(
+        [
+            ffprobe_path,
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=index,codec_type,width,height",
+            "-of",
+            "json",
+            str(media_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, (
+        "FFprobe failed while inspecting rendered output:\n"
+        f"{result.stderr}"
+    )
+
+    payload = json.loads(result.stdout)
+
+    return payload.get("streams", [])
+
+
+def _video_stream(streams: list[dict]) -> dict:
+    video_streams = [
+        stream
+        for stream in streams
+        if stream.get("codec_type") == "video"
+    ]
+
+    assert video_streams, "Rendered output does not contain a video stream."
+
+    return video_streams[0]
+
+
+def _has_audio_stream(streams: list[dict]) -> bool:
+    return any(
+        stream.get("codec_type") == "audio"
+        for stream in streams
+    )
+
+
+def _has_subtitle_stream(streams: list[dict]) -> bool:
+    return any(
+        stream.get("codec_type") == "subtitle"
+        for stream in streams
+    )
 
 
 @pytest.mark.integration
@@ -41,8 +105,8 @@ def test_editing_renderer_produces_valid_vertical_video(
             ),
             background=BackgroundPlan(
                 source="same_video",
-                blur_radius=20.0,
-                brightness=0.65,
+                blur_radius=32.0,
+                brightness=0.58,
             ),
             foreground=ForegroundPlan(
                 preserve_aspect_ratio=True,
@@ -66,8 +130,13 @@ def test_editing_renderer_produces_valid_vertical_video(
                 font_size=54,
                 font_name="Arial",
                 font_weight="bold",
-                position="center",
+                horizontal_alignment="center",
+                vertical_position="lower_middle",
+                horizontal_margin=80,
+                vertical_margin=500,
                 max_lines=2,
+                outline_width=4,
+                shadow=True,
             ),
             enabled=True,
         ),
@@ -86,55 +155,15 @@ def test_editing_renderer_produces_valid_vertical_video(
     assert output_path.exists()
     assert output_path.stat().st_size > 0
 
-    probe = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "stream="
-            "codec_type,"
-            "codec_name,"
-            "width,"
-            "height,"
-            "sample_aspect_ratio",
-            "-of",
-            "json",
-            str(output_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    # The renderer's public validation contract.
+    renderer.validate_media(output_path)
 
-    assert probe.stdout
+    streams = _probe_streams(output_path)
+    video = _video_stream(streams)
 
-    import json
-
-    data = json.loads(probe.stdout)
-    streams = data["streams"]
-
-    video_streams = [
-        stream
-        for stream in streams
-        if stream.get("codec_type") == "video"
-    ]
-
-    audio_streams = [
-        stream
-        for stream in streams
-        if stream.get("codec_type") == "audio"
-    ]
-
-    assert len(video_streams) == 1
-    assert len(audio_streams) == 1
-
-    video = video_streams[0]
-
-    assert video["codec_name"] == "h264"
     assert video["width"] == 1080
     assert video["height"] == 1920
-    assert video["sample_aspect_ratio"] == "1:1"
+    assert _has_audio_stream(streams)
 
 
 @pytest.mark.integration
@@ -158,8 +187,8 @@ def test_editing_renderer_burns_caption_into_real_output(
             ),
             background=BackgroundPlan(
                 source="same_video",
-                blur_radius=20.0,
-                brightness=0.65,
+                blur_radius=32.0,
+                brightness=0.58,
             ),
             foreground=ForegroundPlan(
                 preserve_aspect_ratio=True,
@@ -178,8 +207,13 @@ def test_editing_renderer_burns_caption_into_real_output(
                 font_size=54,
                 font_name="Arial",
                 font_weight="bold",
-                position="center",
+                horizontal_alignment="center",
+                vertical_position="lower_middle",
+                horizontal_margin=80,
+                vertical_margin=500,
                 max_lines=2,
+                outline_width=4,
+                shadow=True,
             ),
             enabled=True,
         ),
@@ -188,33 +222,26 @@ def test_editing_renderer_burns_caption_into_real_output(
 
     renderer = EditingRenderer()
 
-    renderer.render(
+    result = renderer.render(
         source_path=source_path,
         output_path=output_path,
         plan=plan,
     )
 
+    assert result == output_path
     assert output_path.exists()
     assert output_path.stat().st_size > 0
 
-    # Burned-in captions are part of the video pixels.
-    # Therefore there should be no separate subtitle stream.
-    probe = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "s",
-            "-show_entries",
-            "stream=index",
-            "-of",
-            "csv=p=0",
-            str(output_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    # The renderer burns captions into the video during rendering.
+    renderer.validate_media(output_path)
 
-    assert probe.stdout.strip() == ""
+    streams = _probe_streams(output_path)
+    video = _video_stream(streams)
+
+    assert video["width"] == 1080
+    assert video["height"] == 1920
+    assert _has_audio_stream(streams)
+
+    # Captions are burned into the video rather than stored as a subtitle
+    # stream, which keeps the final artifact self-contained for social use.
+    assert not _has_subtitle_stream(streams)

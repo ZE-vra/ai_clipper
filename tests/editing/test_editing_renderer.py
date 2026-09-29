@@ -28,8 +28,8 @@ def create_editing_plan(
             ),
             background=BackgroundPlan(
                 source="same_video",
-                blur_radius=20.0,
-                brightness=0.65,
+                blur_radius=32.0,
+                brightness=0.58,
             ),
             foreground=ForegroundPlan(
                 preserve_aspect_ratio=True,
@@ -42,8 +42,13 @@ def create_editing_plan(
                 font_size=54,
                 font_name="Arial",
                 font_weight="bold",
-                position="center",
+                horizontal_alignment="center",
+                vertical_position="lower_middle",
+                horizontal_margin=80,
+                vertical_margin=500,
                 max_lines=2,
+                outline_width=4,
+                shadow=True,
             ),
             segments=[
                 CaptionSegment(
@@ -83,7 +88,8 @@ def test_renderer_builds_vertical_composition_command(tmp_path):
     assert "split=2" in filter_complex
     assert "scale=1080:1920" in filter_complex
     assert "crop=1080:1920" in filter_complex
-    assert "boxblur=20.0:1" in filter_complex
+    assert "boxblur=32.0:1" in filter_complex
+    assert "eq=brightness=-0.42000000000000004" in filter_complex
     assert "overlay=(W-w)/2:(H-h)/2" in filter_complex
     assert "subtitles=" in filter_complex
 
@@ -141,7 +147,11 @@ def test_renderer_creates_valid_ass_caption_file(tmp_path):
     assert "[V4+ Styles]" in content
     assert "[Events]" in content
     assert "Arial" in content
+    assert "54" in content
     assert "This is a test caption." in content
+
+    assert "Style: Default,Arial,54" in content
+    assert ",1,4,1,2,80,80,500,1" in content
 
     caption_file.unlink()
 
@@ -151,6 +161,46 @@ def test_renderer_formats_ass_time():
     assert EditingRenderer._format_ass_time(1.25) == "0:00:01.25"
     assert EditingRenderer._format_ass_time(65.5) == "0:01:05.50"
     assert EditingRenderer._format_ass_time(3661.75) == "1:01:01.75"
+
+
+def test_renderer_maps_caption_position_to_ass_alignment():
+    assert (
+        EditingRenderer._ass_alignment(
+            horizontal_alignment="center",
+            vertical_position="lower_middle",
+        )
+        == 2
+    )
+
+    assert (
+        EditingRenderer._ass_alignment(
+            horizontal_alignment="left",
+            vertical_position="top",
+        )
+        == 7
+    )
+
+    assert (
+        EditingRenderer._ass_alignment(
+            horizontal_alignment="right",
+            vertical_position="bottom",
+        )
+        == 3
+    )
+
+
+def test_renderer_resolves_lower_middle_caption_margin():
+    plan = create_editing_plan()
+
+    style = plan.captions.style
+    assert style is not None
+
+    assert (
+        EditingRenderer._ass_vertical_margin(
+            style=style,
+        )
+        == 500
+    )
 
 
 def test_renderer_render_executes_ffmpeg_and_validates_output(tmp_path):

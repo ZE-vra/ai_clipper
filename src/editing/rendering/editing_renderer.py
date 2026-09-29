@@ -214,11 +214,6 @@ class EditingRenderer:
 
             current_video_label = "[captioned]"
 
-        # Normalize the final video to square pixels.
-        #
-        # The composition dimensions are already exactly 1080x1920,
-        # but upstream source aspect-ratio metadata can otherwise survive
-        # the filter graph and produce a non-1:1 sample aspect ratio.
         filter_parts.append(
             f"{current_video_label}"
             "setsar=1"
@@ -294,6 +289,17 @@ class EditingRenderer:
         path = Path(temporary.name)
 
         try:
+            alignment = EditingRenderer._ass_alignment(
+                horizontal_alignment=style.horizontal_alignment,
+                vertical_position=style.vertical_position,
+            )
+
+            vertical_margin = EditingRenderer._ass_vertical_margin(
+                style=style,
+            )
+
+            shadow = 1 if style.shadow else 0
+
             temporary.write(
                 "[Script Info]\n"
                 "ScriptType: v4.00+\n"
@@ -311,7 +317,12 @@ class EditingRenderer:
                 f"Style: Default,{style.font_name},{style.font_size},"
                 "&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,"
                 f"{1 if style.font_weight == 'bold' else 0},0,0,0,"
-                "100,100,0,0,1,3,1,5,80,80,120,1\n"
+                "100,100,0,0,1,"
+                f"{style.outline_width},{shadow},"
+                f"{alignment},"
+                f"{style.horizontal_margin},"
+                f"{style.horizontal_margin},"
+                f"{vertical_margin},1\n"
                 "\n"
                 "[Events]\n"
                 "Format: Layer, Start, End, Style, Name, "
@@ -322,6 +333,7 @@ class EditingRenderer:
                 start = EditingRenderer._format_ass_time(
                     segment.start_time
                 )
+
                 end = EditingRenderer._format_ass_time(
                     segment.end_time
                 )
@@ -340,6 +352,79 @@ class EditingRenderer:
             temporary.close()
 
         return path
+
+    @staticmethod
+    def _ass_alignment(
+        *,
+        horizontal_alignment: str,
+        vertical_position: str,
+    ) -> int:
+        """
+        Convert semantic caption positioning into ASS alignment.
+
+        ASS alignment values:
+            1 = bottom-left
+            2 = bottom-center
+            3 = bottom-right
+            4 = middle-left
+            5 = center
+            6 = middle-right
+            7 = top-left
+            8 = top-center
+            9 = top-right
+        """
+
+        horizontal = {
+            "left": {
+                "top": 7,
+                "center": 4,
+                "lower_middle": 4,
+                "bottom": 1,
+            },
+            "center": {
+                "top": 8,
+                "center": 5,
+                "lower_middle": 2,
+                "bottom": 2,
+            },
+            "right": {
+                "top": 9,
+                "center": 6,
+                "lower_middle": 6,
+                "bottom": 3,
+            },
+        }
+
+        try:
+            return horizontal[horizontal_alignment][vertical_position]
+        except KeyError as exc:
+            raise EditingRenderingError(
+                "Unsupported caption positioning: "
+                f"{horizontal_alignment=}, {vertical_position=}"
+            ) from exc
+
+    @staticmethod
+    def _ass_vertical_margin(*, style) -> int:
+        """
+        Resolve the semantic vertical margin used by ASS.
+
+        lower_middle intentionally uses a large bottom margin so
+        captions sit above the platform UI region rather than at
+        the absolute bottom of the frame.
+        """
+
+        if style.vertical_position == "lower_middle":
+            return style.vertical_margin
+
+        if style.vertical_position == "bottom":
+            return style.vertical_margin
+
+        if style.vertical_position == "top":
+            return style.vertical_margin
+
+        # ASS center alignment ignores MarginV for practical
+        # vertical placement, so the value is irrelevant here.
+        return 0
 
     @staticmethod
     def _format_ass_time(seconds: float) -> str:

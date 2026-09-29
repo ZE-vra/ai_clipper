@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from src.editing.models import (
@@ -14,8 +13,11 @@ class CompositionPlanner:
     Creates a deterministic vertical-video composition plan.
 
     V1 uses the original video twice:
-    - a blurred/dimmed copy fills the vertical canvas
+    - a strongly blurred/dimmed copy fills the vertical canvas
     - a clear copy remains in the foreground with its aspect ratio preserved
+
+    The background exists to fill the canvas without competing
+    with the foreground video.
 
     No face detection, tracking, or AI is required.
     """
@@ -25,8 +27,8 @@ class CompositionPlanner:
         *,
         canvas_width: int = 1080,
         canvas_height: int = 1920,
-        blur_radius: float = 20.0,
-        background_brightness: float = 0.65,
+        blur_radius: float = 32.0,
+        background_brightness: float = 0.58,
         foreground_scale: float = 1.0,
     ) -> None:
         self.canvas_width = canvas_width
@@ -74,4 +76,3 @@ class CompositionPlanner:
                 scale=self.foreground_scale,
             ),
         )
-

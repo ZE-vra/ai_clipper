@@ -13,8 +13,8 @@ class CanvasPlan:
 @dataclass(frozen=True)
 class BackgroundPlan:
     source: Literal["same_video"]
-    blur_radius: float = 20.0
-    brightness: float = 0.65
+    blur_radius: float = 32.0
+    brightness: float = 0.58
 
 
 @dataclass(frozen=True)
@@ -35,8 +35,26 @@ class CaptionStyle:
     font_size: int
     font_name: str
     font_weight: Literal["normal", "bold"]
-    position: Literal["top", "center", "bottom"]
+
+    horizontal_alignment: Literal[
+        "left",
+        "center",
+        "right",
+    ]
+
+    vertical_position: Literal[
+        "top",
+        "center",
+        "lower_middle",
+        "bottom",
+    ]
+
+    horizontal_margin: int = 80
+    vertical_margin: int = 500
     max_lines: int = 2
+
+    outline_width: int = 4
+    shadow: bool = True
 
 
 @dataclass(frozen=True)

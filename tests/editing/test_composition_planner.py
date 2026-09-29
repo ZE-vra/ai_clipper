@@ -1,4 +1,3 @@
-
 from src.editing.planning.composition_planner import CompositionPlanner
 
 
@@ -11,8 +10,8 @@ def test_composition_planner_creates_vertical_blurred_background_plan():
     assert plan.canvas.height == 1920
 
     assert plan.background.source == "same_video"
-    assert plan.background.blur_radius == 20.0
-    assert plan.background.brightness == 0.65
+    assert plan.background.blur_radius == 32.0
+    assert plan.background.brightness == 0.58
 
     assert plan.foreground.preserve_aspect_ratio is True
     assert plan.foreground.scale == 1.0
@@ -50,10 +49,10 @@ def test_composition_planner_rejects_invalid_clip_id():
 
 
 def test_composition_planner_rejects_invalid_background_brightness():
-    planner = CompositionPlanner()
-
     try:
-        CompositionPlanner(background_brightness=0.0).create_plan("clip_01")
+        CompositionPlanner(
+            background_brightness=0.0
+        ).create_plan("clip_01")
     except ValueError:
         pass
     else:
