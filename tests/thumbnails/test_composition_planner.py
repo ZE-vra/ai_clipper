@@ -3,9 +3,7 @@ from __future__ import annotations
 import pytest
 
 from src.thumbnails.domain.assets import AssetProvenance, VisualAsset
-from src.thumbnails.domain.brief import CreativeBrief
-from src.thumbnails.domain.concepts import CopyBlock, CopyConcept, CopyRole, ThumbnailConcept, VisualStrategy
-from src.thumbnails.domain.geometry import BoundingBox, Point, Size
+from src.thumbnails.domain.geometry import BoundingBox, Point, Region, Size
 from src.thumbnails.domain.target import ThumbnailTarget, UIOcclusionRegion
 from src.thumbnails.layout.composition import CompositionPlanner, CompositionPlannerConfig
 from src.thumbnails.perception.crop import CropSuitabilityEvidence
@@ -120,7 +118,7 @@ def test_planner_places_negative_space_opposite_subject() -> None:
 
 def test_planner_uses_alternate_side_when_preferred_side_is_ui_occluded() -> None:
     occlusion = UIOcclusionRegion(
-        region=__import__("src.thumbnails.domain.geometry", fromlist=["Region"]).Region(
+        region=Region(
             name="right_ui",
             bounds=BoundingBox(0.55, 0.0, 1.0, 1.0),
         ),
@@ -144,7 +142,7 @@ def test_planner_uses_alternate_side_when_preferred_side_is_ui_occluded() -> Non
     )
 
     assert plan.negative_space_regions[0] == BoundingBox(
-        0.58, 0.10, 1.0, 0.90
+        0.0, 0.10, 0.42, 0.90
     )
 
 
