@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from src.thumbnails.domain.geometry import BoundingBox, Point
+from src.thumbnails.perception.crop import CropSuitabilityEvidence
 from src.thumbnails.perception.focal import (
     FocalAnalysisEvidence,
     FocalRegionEvidence,
@@ -89,6 +90,7 @@ def build_perception() -> FramePerception:
         quality=build_quality(),
         focal=build_focal(),
         subjects=build_subjects(),
+        crop=CropSuitabilityEvidence(0.50, 1.0, 1.0, 1.0, 1),
     )
 
 
@@ -102,6 +104,7 @@ def test_scorer_extracts_perception_scores() -> None:
     assert result.quality_score == pytest.approx(0.80)
     assert result.subject_score == pytest.approx(0.60)
     assert result.focal_score == pytest.approx(0.70)
+    assert result.crop_score == pytest.approx(0.50)
 
 
 def test_scorer_calculates_weighted_overall_score() -> None:
@@ -109,7 +112,8 @@ def test_scorer_calculates_weighted_overall_score() -> None:
         FrameCandidateScoringConfig(
             quality_weight=0.40,
             subject_weight=0.35,
-            focal_weight=0.25,
+            focal_weight=0.15,
+            crop_weight=0.30,
         )
     )
 
@@ -120,7 +124,8 @@ def test_scorer_calculates_weighted_overall_score() -> None:
     expected = (
         0.40 * 0.80
         + 0.35 * 0.60
-        + 0.25 * 0.70
+        + 0.15 * 0.70
+        + 0.30 * 0.50
     )
 
     assert result.overall_score == pytest.approx(
