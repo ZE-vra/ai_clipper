@@ -81,7 +81,10 @@ class CropAnalyzer:
         focal_region = perception.focal.primary_region
 
         if focal_region is None:
-            focal_retention = 0.0
+            # Absence of focal evidence is neutral for crop viability.
+            # The crop analyzer should not penalize a frame merely because
+            # the focal detector found no region.
+            focal_retention = 1.0
         else:
             focal_retention = horizontal_retention(
                 focal_region.bounds,
