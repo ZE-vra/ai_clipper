@@ -22,6 +22,7 @@ class FrameCandidateScore:
     quality_score: float
     subject_score: float
     focal_score: float
+    crop_score: float
     overall_score: float
 
     def __post_init__(self) -> None:
@@ -29,6 +30,7 @@ class FrameCandidateScore:
             ("quality_score", self.quality_score),
             ("subject_score", self.subject_score),
             ("focal_score", self.focal_score),
+            ("crop_score", self.crop_score),
             ("overall_score", self.overall_score),
         ):
             _validate_score(value, name)
@@ -40,15 +42,17 @@ class FrameCandidateScoringConfig:
     Weights used to combine independent frame-scoring signals.
     """
 
-    quality_weight: float = 0.40
-    subject_weight: float = 0.35
-    focal_weight: float = 0.25
+    quality_weight: float = 0.30
+    subject_weight: float = 0.25
+    focal_weight: float = 0.15
+    crop_weight: float = 0.30
 
     def __post_init__(self) -> None:
         weights = (
             self.quality_weight,
             self.subject_weight,
             self.focal_weight,
+            self.crop_weight,
         )
 
         if any(weight < 0.0 for weight in weights):
