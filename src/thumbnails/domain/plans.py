@@ -76,6 +76,11 @@ class TypographyBlockPlan:
     color: str
 
     position: Point
+    text_bounds: BoundingBox
+
+    max_lines: int = 2
+    line_spacing: float = 0.92
+    rendered_text: Optional[str] = None
 
     stroke_color: Optional[str] = None
     stroke_width: int = 0
@@ -108,6 +113,21 @@ class TypographyBlockPlan:
         if not self.color.strip():
             raise ValueError(
                 "color must not be blank."
+            )
+
+        if self.max_lines <= 0:
+            raise ValueError(
+                "max_lines must be greater than 0."
+            )
+
+        if self.line_spacing <= 0:
+            raise ValueError(
+                "line_spacing must be greater than 0."
+            )
+
+        if self.rendered_text is not None and not self.rendered_text.strip():
+            raise ValueError(
+                "rendered_text must not be blank when provided."
             )
 
         if self.stroke_width < 0:
