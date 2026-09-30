@@ -141,6 +141,7 @@ def test_scorer_returns_zero_for_missing_subjects() -> None:
         subjects=SubjectAnalysisEvidence(
             subjects=(),
         ),
+        crop=CropSuitabilityEvidence(0.0, 0.0, 0.0, 0.0, 0),
     )
 
     result = FrameCandidateScorer().score(
@@ -158,6 +159,7 @@ def test_scorer_returns_zero_for_missing_focal_regions() -> None:
             regions=(),
         ),
         subjects=build_subjects(),
+        crop=CropSuitabilityEvidence(0.0, 0.0, 0.0, 0.0, 1),
     )
 
     result = FrameCandidateScorer().score(
