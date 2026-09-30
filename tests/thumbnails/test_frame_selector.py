@@ -45,7 +45,7 @@ def make_perception(
             ),
         )
 
-    crop = CropSuitabilityEvidence(0.5, 1.0 if subject_prominence is not None else 0.0, 1.0 if subject_prominence is not None else 0.0, 1.0 if focal_strength is not None else 0.0, 1 if subject_prominence is not None else 0)
+    crop = CropSuitabilityEvidence(0.9 if subject_prominence is not None else 0.0, 1.0 if subject_prominence is not None else 0.0, 1.0 if subject_prominence is not None else 0.0, 1.0 if focal_strength is not None else 0.0, 1 if subject_prominence is not None else 0)
 
     focal = FocalAnalysisEvidence(regions=())
     if focal_strength is not None:
@@ -121,6 +121,7 @@ def test_returns_selected_score() -> None:
     assert selected.score.quality_score == 0.8
     assert selected.score.subject_score == 0.6
     assert selected.score.focal_score == 0.4
+    assert selected.score.crop_score == 0.9
 
 
 def test_selection_is_deterministic_for_equal_scores() -> None:
