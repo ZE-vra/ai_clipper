@@ -87,6 +87,7 @@ def test_frame_perception_is_immutable() -> None:
         quality=build_quality(),
         focal=build_focal(),
         subjects=build_subjects(),
+        crop=CropSuitabilityEvidence(0.7, 1.0, 1.0, 1.0, 0),
     )
 
     with pytest.raises(AttributeError):
