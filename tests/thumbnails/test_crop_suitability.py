@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 from src.thumbnails.domain.geometry import BoundingBox, Point
-from src.thumbnails.perception.crop import CropAnalyzerConfig
+from src.thumbnails.perception.crop import CropAnalyzerConfig, CropSuitabilityEvidence
 from src.thumbnails.perception.crop_analyzer import CropAnalyzer
 from src.thumbnails.perception.focal import FocalAnalysisEvidence, FocalRegionEvidence
 from src.thumbnails.perception.frame_perception import FramePerception
@@ -41,7 +41,7 @@ def make_perception(path: Path, subjects, focal_bounds=None) -> FramePerception:
         ),
         focal=focal,
         subjects=SubjectAnalysisEvidence(subjects=tuple(subjects)),
-        crop=None,  # CropAnalyzer only consumes frame_path, subjects and focal evidence.
+        crop=CropSuitabilityEvidence(0.0, 0.0, 0.0, 0.0, len(subjects)),
     )
 
 
