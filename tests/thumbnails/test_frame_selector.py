@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from src.thumbnails.perception.crop import CropSuitabilityEvidence
 from src.thumbnails.perception.focal import FocalAnalysisEvidence
 from src.thumbnails.perception.frame_perception import FramePerception
 from src.thumbnails.perception.frame_selector import FrameSelector
@@ -44,6 +45,8 @@ def make_perception(
             ),
         )
 
+    crop = CropSuitabilityEvidence(0.5, 1.0 if subject_prominence is not None else 0.0, 1.0 if subject_prominence is not None else 0.0, 1.0 if focal_strength is not None else 0.0, 1 if subject_prominence is not None else 0)
+
     focal = FocalAnalysisEvidence(regions=())
     if focal_strength is not None:
         from src.thumbnails.domain.geometry import BoundingBox, Point
@@ -79,6 +82,7 @@ def make_perception(
         ),
         focal=focal,
         subjects=subjects,
+        crop=crop,
     )
 
 
