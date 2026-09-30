@@ -11,12 +11,14 @@ def test_frame_candidate_score_stores_scores() -> None:
         quality_score=0.8,
         subject_score=0.7,
         focal_score=0.6,
+        crop_score=0.7,
         overall_score=0.72,
     )
 
     assert score.quality_score == pytest.approx(0.8)
     assert score.subject_score == pytest.approx(0.7)
     assert score.focal_score == pytest.approx(0.6)
+    assert score.crop_score == pytest.approx(0.7)
     assert score.overall_score == pytest.approx(0.72)
 
 
@@ -26,6 +28,7 @@ def test_frame_candidate_score_stores_scores() -> None:
         "quality_score",
         "subject_score",
         "focal_score",
+        "crop_score",
         "overall_score",
     ),
 )
@@ -36,6 +39,7 @@ def test_frame_candidate_score_rejects_invalid_scores(
         "quality_score": 0.5,
         "subject_score": 0.5,
         "focal_score": 0.5,
+        "crop_score": 0.5,
         "overall_score": 0.5,
     }
 
@@ -50,7 +54,8 @@ def test_scoring_config_has_expected_defaults() -> None:
 
     assert config.quality_weight == pytest.approx(0.40)
     assert config.subject_weight == pytest.approx(0.35)
-    assert config.focal_weight == pytest.approx(0.25)
+    assert config.focal_weight == pytest.approx(0.15)
+    assert config.crop_weight == pytest.approx(0.30)
 
 
 def test_scoring_config_rejects_all_zero_weights() -> None:
@@ -59,6 +64,7 @@ def test_scoring_config_rejects_all_zero_weights() -> None:
             quality_weight=0.0,
             subject_weight=0.0,
             focal_weight=0.0,
+            crop_weight=0.0,
         )
 
 
