@@ -51,6 +51,7 @@ def main() -> None:
         print(f"Quality:       {score.quality_score:.3f}")
         print(f"Subject:       {score.subject_score:.3f}")
         print(f"Focal:         {score.focal_score:.3f}")
+        print(f"Crop:          {score.crop_score:.3f}")
         print(f"Overall:       {score.overall_score:.3f}")
         print(f"Subjects:      {len(perception.subjects.subjects)}")
         print(f"Focal regions: {len(perception.focal.regions)}")
@@ -66,6 +67,7 @@ def main() -> None:
     print(f"Quality:       {selected.score.quality_score:.3f}")
     print(f"Subject:       {selected.score.subject_score:.3f}")
     print(f"Focal:         {selected.score.focal_score:.3f}")
+    print(f"Crop:          {selected.score.crop_score:.3f}")
     print("=" * 70)
 
 
