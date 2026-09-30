@@ -34,9 +34,9 @@ class CropAnalyzerConfig:
     target_width: int = 1080
     target_height: int = 1920
     minimum_retention: float = 0.50
-    subject_weight: float = 0.50
-    primary_subject_weight: float = 0.30
-    focal_weight: float = 0.20
+    subject_weight: float = 0.25
+    primary_subject_weight: float = 0.50
+    focal_weight: float = 0.25
 
     def __post_init__(self) -> None:
         if self.target_width <= 0:
