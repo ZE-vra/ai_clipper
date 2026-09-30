@@ -40,6 +40,8 @@ class FrameCandidateScorer:
             perception
         )
 
+        crop_score = perception.crop.score
+
         overall_score = (
             self.config.quality_weight
             * quality_score
@@ -47,12 +49,15 @@ class FrameCandidateScorer:
             * subject_score
             + self.config.focal_weight
             * focal_score
+            + self.config.crop_weight
+            * crop_score
         )
 
         return FrameCandidateScore(
             quality_score=quality_score,
             subject_score=subject_score,
             focal_score=focal_score,
+            crop_score=crop_score,
             overall_score=overall_score,
         )
 
