@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.thumbnails.perception.crop import CropSuitabilityEvidence
 from src.thumbnails.perception.focal import FocalAnalysisEvidence
 from src.thumbnails.perception.quality import FrameQualityEvidence
 from src.thumbnails.perception.subjects import SubjectAnalysisEvidence
@@ -22,6 +23,7 @@ class FramePerception:
     quality: FrameQualityEvidence
     focal: FocalAnalysisEvidence
     subjects: SubjectAnalysisEvidence
+    crop: CropSuitabilityEvidence
 
     def __post_init__(self) -> None:
         if not self.frame_path.name:
