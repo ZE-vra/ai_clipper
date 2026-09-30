@@ -52,8 +52,8 @@ def test_frame_candidate_score_rejects_invalid_scores(
 def test_scoring_config_has_expected_defaults() -> None:
     config = FrameCandidateScoringConfig()
 
-    assert config.quality_weight == pytest.approx(0.40)
-    assert config.subject_weight == pytest.approx(0.35)
+    assert config.quality_weight == pytest.approx(0.30)
+    assert config.subject_weight == pytest.approx(0.25)
     assert config.focal_weight == pytest.approx(0.15)
     assert config.crop_weight == pytest.approx(0.30)
 
