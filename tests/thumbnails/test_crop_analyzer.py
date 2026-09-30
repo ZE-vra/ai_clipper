@@ -1,140 +1,103 @@
 from __future__ import annotations
 
-import pytest
+from pathlib import Path
 
-from src.thumbnails.domain.geometry import BoundingBox
-from src.thumbnails.perception.crop import (
-    CropAnalyzerConfig,
-    CropSuitabilityEvidence,
-    calculate_horizontal_crop_bounds,
-    horizontal_retention,
-)
+from PIL import Image
+
+from src.thumbnails.domain.geometry import BoundingBox, Point
+from src.thumbnails.perception.crop import CropAnalyzerConfig, CropSuitabilityEvidence
+from src.thumbnails.perception.crop_analyzer import CropAnalyzer
+from src.thumbnails.perception.focal import FocalAnalysisEvidence, FocalRegionEvidence
+from src.thumbnails.perception.frame_perception import FramePerception
+from src.thumbnails.perception.quality import FrameQualityEvidence
+from src.thumbnails.perception.subjects import SubjectAnalysisEvidence, SubjectEvidence, SubjectKind
 
 
-def test_crop_suitability_evidence_validates_scores() -> None:
-    evidence = CropSuitabilityEvidence(
-        score=0.8,
-        retained_subject_ratio=0.75,
-        primary_subject_retention=0.9,
-        focal_retention=0.7,
-        subject_count=3,
+def make_perception(path: Path, subjects, focal_bounds=None) -> FramePerception:
+    focal = FocalAnalysisEvidence(regions=())
+    if focal_bounds is not None:
+        focal = FocalAnalysisEvidence(
+            regions=(
+                FocalRegionEvidence(
+                    region_id="focal_01",
+                    bounds=focal_bounds,
+                    focal_point=focal_bounds.center,
+                    strength=0.8,
+                    area_ratio=focal_bounds.width * focal_bounds.height,
+                ),
+            )
+        )
+
+    return FramePerception(
+        frame_path=path,
+        quality=FrameQualityEvidence(
+            sharpness=0.8,
+            brightness=0.8,
+            contrast=0.8,
+            saturation=0.8,
+            motion_blur=0.0,
+            noise=0.0,
+            overall_quality=0.8,
+        ),
+        focal=focal,
+        subjects=SubjectAnalysisEvidence(subjects=tuple(subjects)),
+        crop=CropSuitabilityEvidence(0.0, 0.0, 0.0, 0.0, len(subjects)),
     )
 
-    assert evidence.score == 0.8
-    assert evidence.subject_count == 3
+
+def person(subject_id: str, left: float, right: float, prominence: float) -> SubjectEvidence:
+    bounds = BoundingBox(left, 0.15, right, 0.85)
+    return SubjectEvidence(
+        subject_id=subject_id,
+        kind=SubjectKind.PERSON,
+        confidence=0.9,
+        bounds=bounds,
+        focal_point=bounds.center,
+        prominence=prominence,
+    )
 
 
-@pytest.mark.parametrize(
-    "field",
-    (
-        "score",
-        "retained_subject_ratio",
-        "primary_subject_retention",
-        "focal_retention",
-    ),
-)
-def test_crop_suitability_evidence_rejects_invalid_scores(field: str) -> None:
-    values = {
-        "score": 0.5,
-        "retained_subject_ratio": 0.5,
-        "primary_subject_retention": 0.5,
-        "focal_retention": 0.5,
-        "subject_count": 1,
-    }
+def test_primary_subject_is_retained_by_centered_vertical_crop(tmp_path: Path) -> None:
+    image_path = tmp_path / "frame.jpg"
+    Image.new("RGB", (1920, 1080), "white").save(image_path)
 
-    values[field] = 1.1
+    primary = person("primary", 0.70, 0.90, 0.9)
+    perception = make_perception(image_path, [primary])
 
-    with pytest.raises(ValueError):
-        CropSuitabilityEvidence(**values)
+    result = CropAnalyzer().analyze(perception)
+
+    assert result.primary_subject_retention == 1.0
+    assert result.retained_subject_ratio == 1.0
+    assert result.score == 1.0
 
 
-def test_crop_analyzer_config_exposes_target_aspect_ratio() -> None:
+def test_wide_multi_subject_scene_reports_loss_of_secondary_subject(tmp_path: Path) -> None:
+    image_path = tmp_path / "frame.jpg"
+    Image.new("RGB", (1920, 1080), "white").save(image_path)
+
+    primary = person("primary", 0.70, 0.90, 0.9)
+    secondary = person("secondary", 0.05, 0.25, 0.7)
+    perception = make_perception(image_path, [primary, secondary])
+
+    result = CropAnalyzer().analyze(perception)
+
+    assert result.primary_subject_retention == 1.0
+    assert result.retained_subject_ratio == 0.5
+    assert result.score == 0.75
+
+
+def test_crop_analyzer_config_can_make_primary_retention_dominant() -> None:
     config = CropAnalyzerConfig(
-        target_width=1080,
-        target_height=1920,
+        subject_weight=0.10,
+        primary_subject_weight=0.80,
+        focal_weight=0.10,
     )
 
-    assert config.target_aspect_ratio == pytest.approx(1080 / 1920)
-
-
-def test_horizontal_crop_bounds_center_on_subject() -> None:
-    left, right = calculate_horizontal_crop_bounds(
-        source_aspect_ratio=16 / 9,
-        target_aspect_ratio=9 / 16,
-        center_x=0.5,
-    )
-
-    assert left == pytest.approx(0.341796875)
-    assert right == pytest.approx(0.658203125)
-
-
-def test_horizontal_crop_bounds_stay_inside_frame() -> None:
-    left, right = calculate_horizontal_crop_bounds(
-        source_aspect_ratio=16 / 9,
-        target_aspect_ratio=9 / 16,
-        center_x=0.1,
-    )
-
-    assert left == pytest.approx(0.0)
-    assert right == pytest.approx(0.31640625)
-    
-def test_horizontal_retention_is_full_when_inside_crop() -> None:
-    bounds = BoundingBox(
-        left=0.3,
-        top=0.2,
-        right=0.5,
-        bottom=0.8,
-    )
-
-    retention = horizontal_retention(
-        bounds,
-        crop_left=0.2,
-        crop_right=0.8,
-    )
-
-    assert retention == pytest.approx(1.0)
-
-
-def test_horizontal_retention_is_zero_when_outside_crop() -> None:
-    bounds = BoundingBox(
-        left=0.8,
-        top=0.2,
-        right=0.95,
-        bottom=0.8,
-    )
-
-    retention = horizontal_retention(
-        bounds,
-        crop_left=0.1,
-        crop_right=0.7,
-    )
-
-    assert retention == pytest.approx(0.0)
-
-
-def test_horizontal_retention_is_partial_when_crop_cuts_subject() -> None:
-    bounds = BoundingBox(
-        left=0.4,
-        top=0.2,
-        right=0.8,
-        bottom=0.8,
-    )
-
-    retention = horizontal_retention(
-        bounds,
-        crop_left=0.2,
-        crop_right=0.6,
-    )
-
-    assert retention == pytest.approx(0.5)
-
-
-def test_horizontal_crop_is_full_for_narrow_source() -> None:
-    left, right = calculate_horizontal_crop_bounds(
-        source_aspect_ratio=9 / 16,
-        target_aspect_ratio=9 / 16,
-        center_x=0.5,
-    )
-
-    assert left == 0.0
-    assert right == 1.0
+    assert config.primary_subject_weight > config.subject_weight
+    assert sum(
+        (
+            config.subject_weight,
+            config.primary_subject_weight,
+            config.focal_weight,
+        )
+    ) == 1.0
