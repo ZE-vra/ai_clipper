@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from src.thumbnails.perception.crop import CropSuitabilityEvidence
 from src.thumbnails.perception.focal import (
     FocalAnalysisEvidence,
     FocalRegionEvidence,
@@ -70,12 +71,14 @@ def test_frame_perception_stores_all_perception_evidence() -> None:
         quality=build_quality(),
         focal=build_focal(),
         subjects=build_subjects(),
+        crop=CropSuitabilityEvidence(0.7, 1.0, 1.0, 1.0, 0),
     )
 
     assert perception.frame_path == frame_path
     assert perception.quality.overall_quality == pytest.approx(0.75)
     assert perception.focal.primary_region is not None
     assert perception.subjects.subjects == ()
+    assert perception.crop.score == pytest.approx(0.7)
 
 
 def test_frame_perception_is_immutable() -> None:
