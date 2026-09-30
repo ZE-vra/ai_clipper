@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.thumbnails.perception.focal import FocalAnalysisEvidence
+from src.thumbnails.perception.crop import CropSuitabilityEvidence
+from src.thumbnails.perception.crop_analyzer import CropAnalyzer
 from src.thumbnails.perception.focal_analyzer import FocalRegionAnalyzer
 from src.thumbnails.perception.frame_perception import FramePerception
 from src.thumbnails.perception.quality import FrameQualityEvidence
@@ -25,6 +27,7 @@ class FramePerceptionAnalyzer:
         quality_analyzer: FrameQualityAnalyzer | None = None,
         focal_analyzer: FocalRegionAnalyzer | None = None,
         subject_analyzer: SubjectAnalyzer | None = None,
+        crop_analyzer: CropAnalyzer | None = None,
     ) -> None:
         self._quality_analyzer = (
             quality_analyzer
@@ -35,6 +38,7 @@ class FramePerceptionAnalyzer:
             or FocalRegionAnalyzer()
         )
         self._subject_analyzer = subject_analyzer
+        self._crop_analyzer = crop_analyzer or CropAnalyzer()
 
     def analyze(
         self,
@@ -52,9 +56,26 @@ class FramePerceptionAnalyzer:
 
         subjects = self._subject_analyzer.analyze(path)
 
+        preliminary = FramePerception(
+            frame_path=path,
+            quality=quality,
+            focal=focal,
+            subjects=subjects,
+            crop=CropSuitabilityEvidence(
+                score=0.0,
+                retained_subject_ratio=0.0,
+                primary_subject_retention=0.0,
+                focal_retention=0.0,
+                subject_count=len(subjects.subjects),
+            ),
+        )
+
+        crop = self._crop_analyzer.analyze(preliminary)
+
         return FramePerception(
             frame_path=path,
             quality=quality,
             focal=focal,
             subjects=subjects,
+            crop=crop,
         )
