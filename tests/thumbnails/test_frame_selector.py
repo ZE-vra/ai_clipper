@@ -1,98 +1,143 @@
+from pathlib import Path
+
 import pytest
 
-from src.thumbnails.frame_selector import (
-    DeterministicFrameSelector,
-)
+from src.thumbnails.perception.focal import FocalAnalysisEvidence
+from src.thumbnails.perception.frame_perception import FramePerception
+from src.thumbnails.perception.frame_selector import FrameSelector
+from src.thumbnails.perception.quality import FrameQualityEvidence
+from src.thumbnails.perception.scoring import FrameCandidateScoringConfig
+from src.thumbnails.perception.subjects import SubjectAnalysisEvidence
 
 
-def test_default_positions_generate_six_candidates() -> None:
-    selector = DeterministicFrameSelector()
+def make_perception(
+    *,
+    path: str,
+    quality: float,
+    subject_prominence: float | None,
+    focal_strength: float | None,
+) -> FramePerception:
+    subjects = SubjectAnalysisEvidence()
 
-    candidates = selector.generate_candidates(100.0)
+    if subject_prominence is not None:
+        from src.thumbnails.domain.geometry import BoundingBox, Point
+        from src.thumbnails.perception.subjects import (
+            SubjectEvidence,
+            SubjectKind,
+        )
 
-    assert [candidate.timestamp for candidate in candidates] == pytest.approx(
-    [
-        10.0,
-        25.0,
-        40.0,
-        55.0,
-        70.0,
-        85.0,
+        subjects = SubjectAnalysisEvidence(
+            subjects=(
+                SubjectEvidence(
+                    subject_id="person_01",
+                    kind=SubjectKind.PERSON,
+                    confidence=0.9,
+                    bounds=BoundingBox(
+                        left=0.2,
+                        top=0.2,
+                        right=0.7,
+                        bottom=0.9,
+                    ),
+                    focal_point=Point(x=0.45, y=0.55),
+                    prominence=subject_prominence,
+                ),
+            ),
+        )
+
+    focal = FocalAnalysisEvidence(regions=())
+    if focal_strength is not None:
+        from src.thumbnails.domain.geometry import BoundingBox, Point
+        from src.thumbnails.perception.focal import FocalRegionEvidence
+
+        focal = FocalAnalysisEvidence(
+            regions=(
+                FocalRegionEvidence(
+                    region_id="region_01",
+                    bounds=BoundingBox(
+                        left=0.2,
+                        top=0.2,
+                        right=0.7,
+                        bottom=0.9,
+                    ),
+                    focal_point=Point(x=0.45, y=0.55),
+                    strength=focal_strength,
+                    area_ratio=0.35,
+                ),
+            ),
+        )
+
+    return FramePerception(
+        frame_path=Path(path),
+        quality=FrameQualityEvidence(
+            sharpness=quality,
+            brightness=quality,
+            contrast=quality,
+            saturation=quality,
+            motion_blur=0.0,
+            noise=0.0,
+            overall_quality=quality,
+        ),
+        focal=focal,
+        subjects=subjects,
+    )
+
+
+def test_selects_highest_scoring_candidate() -> None:
+    candidates = [
+        make_perception(
+            path="frame_01.jpg",
+            quality=0.5,
+            subject_prominence=0.5,
+            focal_strength=0.5,
+        ),
+        make_perception(
+            path="frame_02.jpg",
+            quality=0.9,
+            subject_prominence=0.9,
+            focal_strength=0.9,
+        ),
     ]
-)
+
+    selected = FrameSelector().select(candidates)
+
+    assert selected.perception.frame_path == Path("frame_02.jpg")
+    assert selected.score.overall_score > 0.8
 
 
-def test_generated_candidates_are_in_chronological_order() -> None:
-    selector = DeterministicFrameSelector()
+def test_returns_selected_score() -> None:
+    candidate = make_perception(
+        path="frame_01.jpg",
+        quality=0.8,
+        subject_prominence=0.6,
+        focal_strength=0.4,
+    )
 
-    candidates = selector.generate_candidates(60.0)
+    selected = FrameSelector().select([candidate])
 
-    timestamps = [
-        candidate.timestamp
-        for candidate in candidates
-    ]
-
-    assert timestamps == sorted(timestamps)
-
-
-def test_selector_avoids_clip_boundaries() -> None:
-    selector = DeterministicFrameSelector()
-
-    candidates = selector.generate_candidates(100.0)
-
-    assert candidates[0].timestamp > 0.0
-    assert candidates[-1].timestamp < 100.0
+    assert selected.score.quality_score == 0.8
+    assert selected.score.subject_score == 0.6
+    assert selected.score.focal_score == 0.4
 
 
-def test_duration_must_be_positive() -> None:
-    selector = DeterministicFrameSelector()
+def test_selection_is_deterministic_for_equal_scores() -> None:
+    first = make_perception(
+        path="frame_01.jpg",
+        quality=0.8,
+        subject_prominence=0.8,
+        focal_strength=0.8,
+    )
+    second = make_perception(
+        path="frame_02.jpg",
+        quality=0.8,
+        subject_prominence=0.8,
+        focal_strength=0.8,
+    )
 
-    with pytest.raises(ValueError, match="duration"):
-        selector.generate_candidates(0)
+    selected = FrameSelector().select([first, second])
 
-    with pytest.raises(ValueError, match="duration"):
-        selector.generate_candidates(-1)
-
-
-def test_candidate_positions_must_not_be_empty() -> None:
-    with pytest.raises(ValueError, match="candidate_positions"):
-        DeterministicFrameSelector(candidate_positions=())
-
-
-def test_candidate_positions_must_be_between_zero_and_one() -> None:
-    with pytest.raises(ValueError, match="candidate positions"):
-        DeterministicFrameSelector(
-            candidate_positions=(0.0, 0.5, 0.9)
-        )
-
-    with pytest.raises(ValueError, match="candidate positions"):
-        DeterministicFrameSelector(
-            candidate_positions=(0.1, 1.0)
-        )
+    assert selected.perception.frame_path == Path("frame_01.jpg")
 
 
-def test_candidate_positions_must_be_strictly_increasing() -> None:
-    with pytest.raises(
-        ValueError,
-        match="strictly increasing",
-    ):
-        DeterministicFrameSelector(
-            candidate_positions=(0.1, 0.4, 0.4, 0.8)
-        )
-
-
-def test_select_returns_middle_candidate() -> None:
-    selector = DeterministicFrameSelector()
-
-    candidates = selector.generate_candidates(100.0)
-
-    selected = selector.select(candidates)
-
-    assert selected.timestamp == pytest.approx(55.0)
-
-
-def test_select_rejects_empty_candidates() -> None:
-    selector = DeterministicFrameSelector()
-
-    with pytest.raises(ValueError, match="candidates"):
-        selector.select([])
+def test_rejects_empty_candidates() -> None:
+    with pytest.raises(ValueError, match="candidates must not be empty"):
+        FrameSelector().select([])
