@@ -110,8 +110,8 @@ def test_scorer_extracts_perception_scores() -> None:
 def test_scorer_calculates_weighted_overall_score() -> None:
     scorer = FrameCandidateScorer(
         FrameCandidateScoringConfig(
-            quality_weight=0.40,
-            subject_weight=0.35,
+            quality_weight=0.30,
+            subject_weight=0.25,
             focal_weight=0.15,
             crop_weight=0.30,
         )
@@ -122,8 +122,8 @@ def test_scorer_calculates_weighted_overall_score() -> None:
     )
 
     expected = (
-        0.40 * 0.80
-        + 0.35 * 0.60
+        0.30 * 0.80
+        + 0.25 * 0.60
         + 0.15 * 0.70
         + 0.30 * 0.50
     )
