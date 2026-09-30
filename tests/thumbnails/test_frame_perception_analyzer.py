@@ -3,6 +3,8 @@ from pathlib import Path
 import pytest
 
 from src.thumbnails.domain.geometry import BoundingBox, Point
+from src.thumbnails.perception.crop import CropSuitabilityEvidence
+from src.thumbnails.perception.crop_analyzer import CropAnalyzer
 from src.thumbnails.perception.focal import (
     FocalAnalysisEvidence,
     FocalRegionEvidence,
@@ -72,6 +74,21 @@ class FakeFocalAnalyzer:
         )
 
 
+class FakeCropAnalyzer:
+    def __init__(self) -> None:
+        self.calls: list[Path] = []
+
+    def analyze(self, perception) -> CropSuitabilityEvidence:
+        self.calls.append(perception.frame_path)
+        return CropSuitabilityEvidence(
+            score=0.65,
+            retained_subject_ratio=1.0,
+            primary_subject_retention=0.9,
+            focal_retention=0.8,
+            subject_count=len(perception.subjects.subjects),
+        )
+
+
 class FakeSubjectAnalyzer:
     def __init__(self) -> None:
         self.calls: list[Path] = []
@@ -96,11 +113,13 @@ def test_analyzer_combines_all_perception_evidence(
     quality = FakeQualityAnalyzer()
     focal = FakeFocalAnalyzer()
     subjects = FakeSubjectAnalyzer()
+    crop = FakeCropAnalyzer()
 
     analyzer = FramePerceptionAnalyzer(
         quality_analyzer=quality,
         focal_analyzer=focal,
         subject_analyzer=subjects,
+        crop_analyzer=crop,
     )
 
     result = analyzer.analyze(image_path)
@@ -114,10 +133,12 @@ def test_analyzer_combines_all_perception_evidence(
     assert result.focal.primary_region is not None
 
     assert result.subjects.subjects == ()
+    assert result.crop.score == pytest.approx(0.65)
 
     assert quality.calls == [image_path]
     assert focal.calls == [image_path]
     assert subjects.calls == [image_path]
+    assert crop.calls == [image_path]
 
 
 def test_analyzer_requires_subject_analyzer(
