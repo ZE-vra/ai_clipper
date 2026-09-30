@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from src.thumbnails.domain.assets import AssetProvenance, VisualAsset
@@ -17,7 +19,7 @@ from src.thumbnails.perception.frame_selector import SelectedFrame
 
 def _selected_frame(subject: SubjectEvidence | None) -> SelectedFrame:
     perception = FramePerception(
-        frame_path="frame.jpg",
+        frame_path=Path("frame.jpg"),
         quality=FrameQualityEvidence(
             sharpness=1.0,
             brightness=0.8,
