@@ -57,3 +57,47 @@ def test_text_band_avoids_primary_subject_when_alternate_band_is_available() -> 
     )
     region = composition.negative_space_regions[0]
     assert region.top > subject.bounds.bottom
+
+
+def test_subject_can_be_staged_opposite_the_text() -> None:
+    subject = _subject(
+        BoundingBox(0.30, 0.12, 0.62, 0.78),
+        Point(0.46, 0.45),
+    )
+    composition = V11CompositionPlanner(
+        __import__(
+            "src.thumbnails.layout.v11_composition",
+            fromlist=["V11CompositionConfig"],
+        ).V11CompositionConfig(
+            preferred_text_side="top",
+            preferred_subject_side="right",
+        )
+    ).plan(
+        selected_frame=_selected(subject),
+        asset=_asset(),
+        target=_target(),
+        source_aspect_ratio=16 / 9,
+    )
+
+    placement = composition.visual_placements[0]
+    region = composition.negative_space_regions[0]
+
+    transformed_focal = placement.focal_point
+    assert transformed_focal.x > 0.55
+    assert region.right < transformed_focal.x
+    assert region.bottom < 0.45
+
+
+def test_centered_subject_remains_the_fallback_layout() -> None:
+    subject = _subject(
+        BoundingBox(0.30, 0.10, 0.60, 0.70),
+        Point(0.45, 0.40),
+    )
+    composition = V11CompositionPlanner().plan(
+        selected_frame=_selected(subject),
+        asset=_asset(),
+        target=_target(),
+        source_aspect_ratio=16 / 9,
+    )
+
+    assert 0.35 <= composition.visual_placements[0].focal_point.x <= 0.55
