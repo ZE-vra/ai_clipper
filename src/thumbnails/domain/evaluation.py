@@ -55,8 +55,14 @@ class ThumbnailEvaluation:
     hard_failures: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     rationale: str = ""
+    # Legacy aggregate score retained only during migration.
+    score: float | None = None
+    soft_failures: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        if self.score is not None and not 0.0 <= self.score <= 1.0:
+            raise ValueError("score must be between 0 and 1 when provided.")
+
         for name, value in (
             ("technical_score", self.technical_score),
             ("composition_score", self.composition_score),
