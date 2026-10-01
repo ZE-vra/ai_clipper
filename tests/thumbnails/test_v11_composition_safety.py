@@ -101,3 +101,30 @@ def test_centered_subject_remains_the_fallback_layout() -> None:
     )
 
     assert 0.35 <= composition.visual_placements[0].focal_point.x <= 0.55
+
+
+def test_text_region_penalizes_overlap_with_protected_head_zone() -> None:
+    subject = _subject(
+        BoundingBox(0.35, 0.18, 0.65, 0.78),
+        Point(0.50, 0.48),
+    )
+    planner = V11CompositionPlanner(
+        __import__(
+            "src.thumbnails.layout.v11_composition",
+            fromlist=["V11CompositionConfig"],
+        ).V11CompositionConfig(
+            preferred_text_side="top",
+            preferred_subject_side="center",
+        )
+    )
+
+    head = BoundingBox(
+        subject.bounds.left,
+        subject.bounds.top,
+        subject.bounds.right,
+        subject.bounds.top + subject.bounds.height * 0.30,
+    )
+    clear = BoundingBox(0.05, 0.72, 0.95, 0.95)
+
+    assert planner._important_region_overlap(head, subject.bounds) > 0.0
+    assert planner._important_region_overlap(clear, subject.bounds) == 0.0
