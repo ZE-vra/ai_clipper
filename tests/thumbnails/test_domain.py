@@ -113,6 +113,12 @@ def make_render_plan() -> ThumbnailRenderPlan:
                 alignment="left",
                 color="#FFFFFF",
                 position=Point(0.1, 0.1),
+                text_bounds=BoundingBox(
+                    left=0.05,
+                    top=0.05,
+                    right=0.45,
+                    bottom=0.15,
+                ),
                 stroke_color="#000000",
                 stroke_width=4,
             ),
@@ -337,6 +343,12 @@ class TestPlans:
                 alignment="diagonal",
                 color="#FFFFFF",
                 position=Point(0.5, 0.5),
+                text_bounds=BoundingBox(
+                    left=0.25,
+                    top=0.45,
+                    right=0.75,
+                    bottom=0.55,
+                ),
             )
 
     def test_visual_treatment_rejects_invalid_opacity(self):
