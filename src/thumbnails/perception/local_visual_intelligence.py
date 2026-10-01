@@ -77,7 +77,7 @@ class LocalVisualIntelligenceAnalyzer:
         subjects: list[SemanticSubject] = []
 
         for index in range(len(masks)):
-            confidence = float(boxes.conf[index])
+            confidence = float(boxes.conf[index].item())
 
             mask = masks[index].detach().cpu().numpy()
             mask_image = Image.fromarray(
