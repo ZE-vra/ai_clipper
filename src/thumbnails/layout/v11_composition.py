@@ -122,11 +122,24 @@ class V11CompositionPlanner:
         )
 
         crop_width = crop_right - crop_left
+        required_height_for_subject = (
+            subject.height / self.config.subject_retention
+            + 2 * self.config.subject_clearance
+        )
+        required_height_for_width = (
+            (
+                subject.width / self.config.subject_retention
+                + 2 * self.config.subject_clearance
+            )
+            * source_aspect_ratio
+            / target_aspect_ratio
+        )
+
         max_zoom_height = min(
             1.0,
             max(
-                subject.height / self.config.subject_retention
-                + 2 * self.config.subject_clearance,
+                required_height_for_subject,
+                required_height_for_width,
                 0.72,
             ),
         )
