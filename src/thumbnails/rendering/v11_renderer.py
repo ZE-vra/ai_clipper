@@ -45,8 +45,12 @@ class V11PillowThumbnailRenderer:
 
         canvas = self._render_visual(plan)
         canvas = self._treat(canvas, plan)
-        self._render_text(canvas, plan)
+        # V1.2.1 keeps the semantic subject available as a visual layer,
+        # but never allows the subject mask to destroy the headline. Text is
+        # therefore rendered last; composition still routes it away from the
+        # subject whenever usable negative space exists.
         canvas = self._render_subject_foreground(canvas, plan)
+        self._render_text(canvas, plan)
 
         canvas.save(output, format="JPEG", quality=95, optimize=True)
         return output
