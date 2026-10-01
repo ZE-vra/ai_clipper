@@ -29,11 +29,11 @@ class V11InMemoryAssetResolver:
 
 class V11PillowThumbnailRenderer:
     """
-    Renderer for the V1.1 art direction.
+    Renderer for the V1.2 art direction.
 
-    It keeps the source frame clean, fills the vertical canvas with a true crop,
-    adds a restrained top/bottom tonal gradient, and gives semantic copy roles
-    different visual weight.
+    It fills the vertical canvas with a true crop, adds a restrained tonal
+    treatment, and when semantic segmentation is available renders the primary
+    subject above the typography so text can occupy the scene behind the subject.
     """
 
     def __init__(self, *, asset_resolver: V11AssetResolver) -> None:
@@ -46,6 +46,7 @@ class V11PillowThumbnailRenderer:
         canvas = self._render_visual(plan)
         canvas = self._treat(canvas, plan)
         self._render_text(canvas, plan)
+        canvas = self._render_subject_foreground(canvas, plan)
 
         canvas.save(output, format="JPEG", quality=95, optimize=True)
         return output
@@ -85,6 +86,50 @@ class V11PillowThumbnailRenderer:
         return Image.alpha_composite(
             image.convert("RGBA"),
             overlay,
+        ).convert("RGB")
+
+    def _render_subject_foreground(
+        self,
+        plan: ThumbnailRenderPlan,
+    ) -> Image.Image:
+        """
+        Restore the semantically segmented primary subject above typography.
+
+        V1.2 changes the layer order from image -> text to
+        background -> text -> subject when a semantic mask is available.
+        """
+        placement = plan.composition.visual_placements[0]
+        asset = self._asset_resolver.resolve(placement.asset_id)
+
+        if not asset.subject_mask_path:
+            return canvas
+
+        mask_path = Path(asset.subject_mask_path)
+        if not mask_path.is_file():
+            raise FileNotFoundError(
+                f"semantic subject mask does not exist: {mask_path}"
+            )
+
+        source = self._open(asset.path).convert("RGB")
+        mask = self._open(mask_path).convert("L")
+
+        if placement.crop_bounds is not None:
+            source = self._crop(source, placement.crop_bounds)
+            mask = self._crop(mask, placement.crop_bounds)
+
+        source = self._cover(source, plan.canvas_width, plan.canvas_height)
+        mask = self._cover(mask, plan.canvas_width, plan.canvas_height)
+
+        source = ImageEnhance.Contrast(source).enhance(1.08)
+        source = ImageEnhance.Color(source).enhance(1.04)
+        source = ImageEnhance.Sharpness(source).enhance(1.12)
+
+        foreground = Image.new("RGBA", source.size, (0, 0, 0, 0))
+        foreground.paste(source, (0, 0), mask)
+
+        return Image.alpha_composite(
+            canvas.convert("RGBA"),
+            foreground,
         ).convert("RGB")
 
     def _render_text(self, canvas: Image.Image, plan: ThumbnailRenderPlan) -> None:
