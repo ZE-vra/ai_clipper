@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+from PIL import Image
 
 from src.thumbnails.domain.assets import VisualAsset
 from src.thumbnails.domain.geometry import BoundingBox, Point
@@ -21,6 +24,9 @@ class V11CompositionConfig:
     text_subject_clearance: float = 0.03
     preferred_text_side: str = "top"
     preferred_subject_side: str = "center"
+    max_semantic_text_overlap: float = 0.01
+    semantic_sample_width: int = 96
+    semantic_sample_height: int = 160
 
     def __post_init__(self) -> None:
         if not 0.5 <= self.subject_retention <= 1.0:
@@ -35,6 +41,10 @@ class V11CompositionConfig:
             raise ValueError("text_subject_clearance must not be negative.")
         if self.preferred_text_side not in {"top", "bottom"}:
             raise ValueError("preferred_text_side must be 'top' or 'bottom'.")
+        if not 0.0 <= self.max_semantic_text_overlap <= 1.0:
+            raise ValueError("max_semantic_text_overlap must be between 0 and 1.")
+        if self.semantic_sample_width <= 0 or self.semantic_sample_height <= 0:
+            raise ValueError("semantic sample dimensions must be positive.")
         if self.preferred_subject_side not in {"left", "center", "right"}:
             raise ValueError(
                 "preferred_subject_side must be 'left', 'center', or 'right'."
@@ -107,6 +117,10 @@ class V11CompositionPlanner:
         text_region = self._choose_text_region(
             transformed_subject=transformed_subject,
             target=target,
+            asset=asset,
+            crop_bounds=crop_bounds,
+            target_width=target.size.width,
+            target_height=target.size.height,
         )
 
         return CompositionPlan(
@@ -256,6 +270,10 @@ class V11CompositionPlanner:
         *,
         transformed_subject: BoundingBox,
         target: ThumbnailTarget,
+        asset: VisualAsset,
+        crop_bounds: BoundingBox,
+        target_width: int,
+        target_height: int,
     ) -> BoundingBox:
         margin = self.config.text_band_margin
         band_height = self.config.preferred_text_band_height
@@ -315,6 +333,10 @@ class V11CompositionPlanner:
             alternatives = self._candidate_text_regions(
                 transformed_subject=transformed_subject,
                 target=target,
+                asset=asset,
+                crop_bounds=crop_bounds,
+                target_width=target_width,
+                target_height=target_height,
             )
             if alternatives:
                 return min(
@@ -326,6 +348,38 @@ class V11CompositionPlanner:
                     ),
                 )
 
+        if self._semantic_overlap(
+            candidate,
+            asset=asset,
+            crop_bounds=crop_bounds,
+            target_width=target_width,
+            target_height=target_height,
+        ) > self.config.max_semantic_text_overlap:
+            alternatives = self._candidate_text_regions(
+                transformed_subject=transformed_subject,
+                target=target,
+                asset=asset,
+                crop_bounds=crop_bounds,
+                target_width=target_width,
+                target_height=target_height,
+            )
+            if alternatives:
+                return min(
+                    alternatives,
+                    key=lambda region: (
+                        self._semantic_overlap(
+                            region,
+                            asset=asset,
+                            crop_bounds=crop_bounds,
+                            target_width=target_width,
+                            target_height=target_height,
+                        ),
+                        self._ui_overlap(region, target),
+                        -region.width * region.height,
+                    ),
+                )
+            raise ValueError("No semantically safe typography region remains.")
+
         return candidate
 
     def _candidate_text_regions(
@@ -333,6 +387,10 @@ class V11CompositionPlanner:
         *,
         transformed_subject: BoundingBox,
         target: ThumbnailTarget,
+        asset: VisualAsset,
+        crop_bounds: BoundingBox,
+        target_width: int,
+        target_height: int,
     ) -> list[BoundingBox]:
         margin = self.config.text_band_margin
         band_height = self.config.preferred_text_band_height
@@ -383,7 +441,78 @@ class V11CompositionPlanner:
             candidate
             for candidate in candidates
             if self._overlap(candidate, exclusion) == 0.0
+            and self._semantic_overlap(
+                candidate,
+                asset=asset,
+                crop_bounds=crop_bounds,
+                target_width=target_width,
+                target_height=target_height,
+            ) <= self.config.max_semantic_text_overlap
         ]
+
+    def _semantic_overlap(
+        self,
+        region: BoundingBox,
+        *,
+        asset: VisualAsset,
+        crop_bounds: BoundingBox,
+        target_width: int,
+        target_height: int,
+    ) -> float:
+        """Measure actual segmented-subject occupancy inside a canvas region."""
+        if not asset.subject_mask_path:
+            return 0.0
+
+        mask_path = Path(asset.subject_mask_path)
+        if not mask_path.is_file():
+            return 0.0
+
+        with Image.open(mask_path) as source:
+            mask = source.convert("L")
+
+        mask = self._crop_image(mask, crop_bounds)
+        mask = self._cover(mask, target_width, target_height)
+
+        left = max(0, min(target_width, round(region.left * target_width)))
+        top = max(0, min(target_height, round(region.top * target_height)))
+        right = max(left + 1, min(target_width, round(region.right * target_width)))
+        bottom = max(top + 1, min(target_height, round(region.bottom * target_height)))
+
+        sample = mask.crop((left, top, right, bottom)).resize(
+            (self.config.semantic_sample_width, self.config.semantic_sample_height),
+            Image.Resampling.BILINEAR,
+        )
+        pixels = list(sample.getdata())
+        if not pixels:
+            return 0.0
+        return sum(1 for value in pixels if value >= 64) / len(pixels)
+
+    @staticmethod
+    def _crop_image(image: Image.Image, bounds: BoundingBox) -> Image.Image:
+        width, height = image.size
+        left = max(0, min(round(bounds.left * width), width - 1))
+        top = max(0, min(round(bounds.top * height), height - 1))
+        right = max(left + 1, min(round(bounds.right * width), width))
+        bottom = max(top + 1, min(round(bounds.bottom * height), height))
+        return image.crop((left, top, right, bottom))
+
+    @staticmethod
+    def _cover(image: Image.Image, width: int, height: int) -> Image.Image:
+        source_width, source_height = image.size
+        source_ratio = source_width / source_height
+        target_ratio = width / height
+
+        if source_ratio > target_ratio:
+            new_height = height
+            new_width = round(height * source_ratio)
+        else:
+            new_width = width
+            new_height = round(width / source_ratio)
+
+        resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        left = max(0, (new_width - width) // 2)
+        top = max(0, (new_height - height) // 2)
+        return resized.crop((left, top, left + width, top + height))
 
     @staticmethod
     def _expand(bounds: BoundingBox, margin: float) -> BoundingBox:
