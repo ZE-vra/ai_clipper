@@ -83,3 +83,22 @@ class FrameCandidate:
             raise ValueError("candidate_id must not be blank.")
         if self.timestamp < 0:
             raise ValueError("timestamp must not be negative.")
+
+
+@dataclass(frozen=True)
+class AssetMatch:
+    """A candidate asset matched against a creative concept."""
+
+    asset_id: str
+    concept_id: str
+    suitability_score: float
+    reasons: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.asset_id.strip():
+            raise ValueError("asset_id must not be blank.")
+        if not self.concept_id.strip():
+            raise ValueError("concept_id must not be blank.")
+        if not 0.0 <= self.suitability_score <= 1.0:
+            raise ValueError("suitability_score must be between 0 and 1.")
