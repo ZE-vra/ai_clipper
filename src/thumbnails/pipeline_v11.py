@@ -24,6 +24,9 @@ from src.thumbnails.perception.focal_analyzer import FocalRegionAnalyzer
 from src.thumbnails.perception.frame_perception_analyzer import FramePerceptionAnalyzer
 from src.thumbnails.perception.frame_selector import FrameSelector
 from src.thumbnails.perception.local_subject_analyzer import LocalSubjectAnalyzer
+from src.thumbnails.perception.local_visual_intelligence import (
+    LocalVisualIntelligenceAnalyzer,
+)
 from src.thumbnails.perception.quality_analyzer import FrameQualityAnalyzer
 from src.thumbnails.perception.video_frame_sampler import (
     FFprobeVideoDurationReader,
@@ -50,6 +53,7 @@ class ThumbnailPipelineV11:
         ffmpeg_binary: str = "ffmpeg",
         ffprobe_binary: str = "ffprobe",
         yolo_model_path: str | Path = "yolo26n.pt",
+        segmentation_model_path: str | Path = "yolo26n-seg.pt",
     ) -> None:
         self.sampler = ThumbnailFrameSampler(
             extractor=FFmpegFrameExtractor(
@@ -69,6 +73,9 @@ class ThumbnailPipelineV11:
         )
 
         self.selector = FrameSelector()
+        self.visual_intelligence = LocalVisualIntelligenceAnalyzer(
+            segmentation_model_path
+        )
         self.copy_director = V11CopyDirector()
         self.composition = V11CompositionPlanner()
 
@@ -135,6 +142,11 @@ class ThumbnailPipelineV11:
                 if sample.path == selected.perception.frame_path
             )
 
+            visual_intelligence = self.visual_intelligence.analyze(
+                selected_sample.path
+            )
+            primary_semantic_subject = visual_intelligence.primary_subject
+
             copy = self.copy_director.create(
                 text=packaging.thumbnail_text,
                 concept_id=f"clip_{packaging.clip_id}_v11_copy",
@@ -156,6 +168,11 @@ class ThumbnailPipelineV11:
                 provenance=AssetProvenance.SOURCE_FRAME,
                 path=str(selected_sample.path),
                 source_timestamp=selected_sample.timestamp,
+                subject_mask_path=(
+                    str(primary_semantic_subject.mask_path)
+                    if primary_semantic_subject is not None
+                    else None
+                ),
             )
 
             target = self._target()
