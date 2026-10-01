@@ -28,6 +28,7 @@ class VisualAsset:
 
     source_timestamp: Optional[float] = None
     bounds: Optional[BoundingBox] = None
+    subject_mask_path: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not self.asset_id.strip():
@@ -39,6 +40,9 @@ class VisualAsset:
             raise ValueError(
                 "path must not be blank."
             )
+
+        if self.subject_mask_path is not None and not self.subject_mask_path.strip():
+            raise ValueError("subject_mask_path must not be blank when provided.")
 
         if (
             self.source_timestamp is not None
