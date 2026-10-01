@@ -118,11 +118,14 @@ class V11PillowThumbnailRenderer:
         source = self._open(asset.path).convert("RGB")
         mask = self._open(mask_path).convert("L")
 
-        # YOLO produces a binary instance mask. Refine the boundary before
-        # compositing so the foreground does not carry a hard pixel staircase
-        # or a bright halo into the final thumbnail.
-        mask = mask.filter(ImageFilter.MinFilter(3))
-        mask = mask.filter(ImageFilter.GaussianBlur(radius=0.8))
+        # YOLO produces a binary instance mask. The raw boundary can contain
+        # bright background pixels, especially against white walls. Contract
+        # the matte before feathering it so the final edge is formed from the
+        # interior of the subject rather than from contaminated boundary
+        # pixels. Pillow's MinFilter is a deterministic erosion operation.
+        erosion_size = 7 if min(mask.size) >= 1000 else 5
+        mask = mask.filter(ImageFilter.MinFilter(erosion_size))
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=0.7))
 
         if placement.crop_bounds is not None:
             source = self._crop(source, placement.crop_bounds)
@@ -130,11 +133,13 @@ class V11PillowThumbnailRenderer:
 
         source = self._cover(source, plan.canvas_width, plan.canvas_height)
         mask = self._cover(mask, plan.canvas_width, plan.canvas_height)
-        mask = mask.filter(ImageFilter.GaussianBlur(radius=0.6))
+        # A second, lighter feather removes stair-stepping introduced by the
+        # cover transform without rebuilding the original halo.
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=0.45))
 
-        source = ImageEnhance.Contrast(source).enhance(1.08)
-        source = ImageEnhance.Color(source).enhance(1.04)
-        source = ImageEnhance.Sharpness(source).enhance(1.12)
+        source = ImageEnhance.Contrast(source).enhance(1.04)
+        source = ImageEnhance.Color(source).enhance(1.02)
+        source = ImageEnhance.Sharpness(source).enhance(1.05)
 
         foreground = Image.new("RGBA", source.size, (0, 0, 0, 0))
         foreground.paste(source, (0, 0), mask)
