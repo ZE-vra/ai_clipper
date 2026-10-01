@@ -27,6 +27,9 @@ from src.thumbnails.perception.local_subject_analyzer import LocalSubjectAnalyze
 from src.thumbnails.perception.local_visual_intelligence import (
     LocalVisualIntelligenceAnalyzer,
 )
+from src.thumbnails.perception.semantic_frame_selector import (
+    SemanticFrameSelector,
+)
 from src.thumbnails.perception.quality_analyzer import FrameQualityAnalyzer
 from src.thumbnails.perception.video_frame_sampler import (
     FFprobeVideoDurationReader,
@@ -73,6 +76,9 @@ class ThumbnailPipelineV11:
         )
 
         self.selector = FrameSelector()
+        self.semantic_selector = SemanticFrameSelector(
+            scorer=self.selector.scorer,
+        )
         self.visual_intelligence = LocalVisualIntelligenceAnalyzer(
             segmentation_model_path
         )
@@ -134,7 +140,15 @@ class ThumbnailPipelineV11:
                 for sample in samples
             )
 
-            selected = self.selector.select(list(perceptions))
+            semantic_results = {
+                sample.path: self.visual_intelligence.analyze(sample.path)
+                for sample in samples
+            }
+
+            selected = self.semantic_selector.select(
+                perceptions,
+                semantic_results,
+            )
 
             selected_sample = next(
                 sample
@@ -142,9 +156,7 @@ class ThumbnailPipelineV11:
                 if sample.path == selected.perception.frame_path
             )
 
-            visual_intelligence = self.visual_intelligence.analyze(
-                selected_sample.path
-            )
+            visual_intelligence = semantic_results[selected_sample.path]
             primary_semantic_subject = visual_intelligence.primary_subject
 
             copy = self.copy_director.create(
