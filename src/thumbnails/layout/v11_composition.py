@@ -441,13 +441,6 @@ class V11CompositionPlanner:
             candidate
             for candidate in candidates
             if self._overlap(candidate, exclusion) == 0.0
-            and self._semantic_overlap(
-                candidate,
-                asset=asset,
-                crop_bounds=crop_bounds,
-                target_width=target_width,
-                target_height=target_height,
-            ) <= self.config.max_semantic_text_overlap
         ]
 
     def _semantic_overlap(
