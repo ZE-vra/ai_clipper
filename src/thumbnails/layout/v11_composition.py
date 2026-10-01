@@ -275,173 +275,117 @@ class V11CompositionPlanner:
         target_width: int,
         target_height: int,
     ) -> BoundingBox:
-        margin = self.config.text_band_margin
-        band_height = self.config.preferred_text_band_height
+        """
+        Select the best usable text field.
+
+        Semantic occupancy is a ranking signal, not a hard candidate-generation
+        veto. This is important for crowded frames: the system should choose
+        the least intrusive viable region rather than produce zero layouts.
+        """
+        candidates = self._candidate_text_regions(
+            transformed_subject=transformed_subject,
+            target=target,
+        )
+        if not candidates:
+            raise ValueError("composition produced no geometric typography regions.")
 
         exclusion = self._expand(
             transformed_subject,
             self.config.text_subject_clearance,
         )
 
-        if self.config.preferred_subject_side == "right":
-            horizontal = BoundingBox(
-                margin,
-                0.0,
-                max(margin, exclusion.left - self.config.text_subject_clearance),
-                1.0,
-            )
-        elif self.config.preferred_subject_side == "left":
-            horizontal = BoundingBox(
-                min(1.0 - margin, exclusion.right + self.config.text_subject_clearance),
-                0.0,
-                1.0 - margin,
-                1.0,
-            )
-        else:
-            horizontal = BoundingBox(
-                margin,
-                0.0,
-                1.0 - margin,
-                1.0,
-            )
-
-        if self.config.preferred_text_side == "top":
-            vertical = BoundingBox(
-                0.0,
-                margin,
-                1.0,
-                min(1.0 - margin, margin + band_height),
-            )
-        else:
-            vertical = BoundingBox(
-                0.0,
-                max(margin, 1.0 - margin - band_height),
-                1.0,
-                1.0 - margin,
-            )
-
-        candidate = self._intersection(horizontal, vertical)
-
-        if candidate is None:
-            # Preserve the old full-width band as a safe fallback. The
-            # typography planner and negotiator can reject it if necessary.
-            candidate = (
-                vertical
-            )
-
-        if self._overlap(candidate, exclusion) > 0.0:
-            alternatives = self._candidate_text_regions(
-                transformed_subject=transformed_subject,
-                target=target,
+        scored: list[tuple[float, BoundingBox]] = []
+        for region in candidates:
+            semantic = self._semantic_overlap(
+                region,
                 asset=asset,
                 crop_bounds=crop_bounds,
                 target_width=target_width,
                 target_height=target_height,
             )
-            if alternatives:
-                return min(
-                    alternatives,
-                    key=lambda region: (
-                        self._overlap(region, exclusion) * 10.0
-                        + self._ui_overlap(region, target),
-                        -region.width * region.height,
-                    ),
-                )
+            subject_overlap = self._overlap(region, exclusion)
+            ui_overlap = self._ui_overlap(region, target)
 
-        if self._semantic_overlap(
-            candidate,
-            asset=asset,
-            crop_bounds=crop_bounds,
-            target_width=target_width,
-            target_height=target_height,
-        ) > self.config.max_semantic_text_overlap:
-            alternatives = self._candidate_text_regions(
-                transformed_subject=transformed_subject,
-                target=target,
-                asset=asset,
-                crop_bounds=crop_bounds,
-                target_width=target_width,
-                target_height=target_height,
+            # Prefer genuine negative space strongly, but never veto a frame
+            # merely because its subject occupies the whole vertical scene.
+            score = (
+                semantic * 12.0
+                + subject_overlap * 20.0
+                + ui_overlap * 40.0
+                - min(1.0, region.width / 0.70) * 1.5
             )
-            if alternatives:
-                return min(
-                    alternatives,
-                    key=lambda region: (
-                        self._semantic_overlap(
-                            region,
-                            asset=asset,
-                            crop_bounds=crop_bounds,
-                            target_width=target_width,
-                            target_height=target_height,
-                        ),
-                        self._ui_overlap(region, target),
-                        -region.width * region.height,
-                    ),
-                )
-            raise ValueError("No viable typography region remains.")
 
-        return candidate
+            center_x = (region.left + region.right) / 2.0
+            if self.config.preferred_subject_side == "right" and center_x > 0.55:
+                score += 2.0
+            elif self.config.preferred_subject_side == "left" and center_x < 0.45:
+                score += 2.0
+
+            scored.append((score, region))
+
+        scored.sort(key=lambda item: item[0])
+        return scored[0][1]
 
     def _candidate_text_regions(
         self,
         *,
         transformed_subject: BoundingBox,
         target: ThumbnailTarget,
-        asset: VisualAsset,
-        crop_bounds: BoundingBox,
-        target_width: int,
-        target_height: int,
     ) -> list[BoundingBox]:
         margin = self.config.text_band_margin
-        band_height = self.config.preferred_text_band_height
         exclusion = self._expand(
             transformed_subject,
             self.config.text_subject_clearance,
         )
 
-        candidates: list[BoundingBox] = []
-        for top in (True, False):
-            vertical = (
-                BoundingBox(
-                    margin,
-                    margin,
-                    1.0 - margin,
-                    min(1.0 - margin, margin + band_height),
-                )
-                if top
-                else BoundingBox(
-                    margin,
-                    max(margin, 1.0 - margin - band_height),
-                    1.0 - margin,
-                    1.0 - margin,
-                )
+        # Keep multiple geometrically viable fields. Semantic occupancy is
+        # scored later; it must not erase every candidate on a crowded frame.
+        candidates = [
+            BoundingBox(margin, margin, 1.0 - margin, 0.27),
+            BoundingBox(margin, 0.10, 1.0 - margin, 0.37),
+            BoundingBox(margin, 0.04, 1.0 - margin, 0.22),
+            BoundingBox(margin, 0.51, 1.0 - margin, 0.78),
+            BoundingBox(margin, 0.59, 1.0 - margin, 0.78),
+            BoundingBox(margin, 0.63, 1.0 - margin, 0.82),
+        ]
+
+        left_width = exclusion.left - margin
+        if left_width >= 0.35:
+            candidates.append(
+                BoundingBox(margin, 0.10, exclusion.left - margin, 0.78)
             )
 
-            horizontal_regions: list[BoundingBox] = [
-                BoundingBox(margin, 0.0, 1.0 - margin, 1.0),
+        right_width = (1.0 - margin) - exclusion.right
+        if right_width >= 0.35:
+            candidates.append(
+                BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
+            )
+
+        safe_candidates: list[BoundingBox] = []
+        for candidate in candidates:
+            intersections = [
+                intersection
+                for safe in target.safe_regions
+                if (intersection := self._intersection(candidate, safe.bounds)) is not None
             ]
-            left_right = exclusion.left - margin
-            if left_right > margin:
-                horizontal_regions.append(
-                    BoundingBox(margin, 0.0, left_right, 1.0)
+            if intersections:
+                safe_candidates.append(
+                    max(intersections, key=lambda region: region.width * region.height)
                 )
 
-            right_left = exclusion.right + margin
-            if right_left < 1.0 - margin:
-                horizontal_regions.append(
-                    BoundingBox(right_left, 0.0, 1.0 - margin, 1.0)
-                )
+        unique: dict[tuple[float, float, float, float], BoundingBox] = {}
+        for candidate in safe_candidates:
+            if candidate.width <= 0 or candidate.height <= 0:
+                continue
+            key = (
+                round(candidate.left, 4),
+                round(candidate.top, 4),
+                round(candidate.right, 4),
+                round(candidate.bottom, 4),
+            )
+            unique[key] = candidate
 
-            for horizontal in horizontal_regions:
-                intersection = self._intersection(vertical, horizontal)
-                if intersection is not None and intersection.width > 0:
-                    candidates.append(intersection)
-
-        return [
-            candidate
-            for candidate in candidates
-            if self._overlap(candidate, exclusion) == 0.0
-        ]
+        return list(unique.values())
 
     def _semantic_overlap(
         self,
