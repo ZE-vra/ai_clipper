@@ -161,43 +161,57 @@ class ThumbnailPipelineV11:
             target = self._target()
             source_aspect_ratio = self._aspect_ratio(selected_sample.path)
 
-            composition = self.composition.plan(
-                selected_frame=selected,
-                asset=asset,
-                target=target,
-                source_aspect_ratio=source_aspect_ratio,
-            )
+            candidates: list[LayoutCandidate] = []
 
-            typography = self.typography.plan(
-                copy=concept.copy.blocks,
-                composition=composition,
-                target=target,
-            )
+            for index, side in enumerate(("top", "bottom"), start=1):
+                from src.thumbnails.layout.v11_composition import V11CompositionConfig
 
-            render_plan = ThumbnailRenderPlan(
-                canvas_width=target.size.width,
-                canvas_height=target.size.height,
-                composition=composition,
-                typography=typography,
-                visual_treatment=VisualTreatmentPlan(
-                    contrast=1.10,
-                    saturation=1.10,
-                    sharpness=1.08,
-                    vignette=0.12,
-                    overlay_opacity=0.0,
-                ),
-            )
+                composition = V11CompositionPlanner(
+                    V11CompositionConfig(
+                        preferred_text_side=side,
+                    )
+                ).plan(
+                    selected_frame=selected,
+                    asset=asset,
+                    target=target,
+                    source_aspect_ratio=source_aspect_ratio,
+                )
 
-            candidate = LayoutCandidate(
-                candidate_id=f"clip_{packaging.clip_id}_v11_layout_001",
-                plan=render_plan,
-                rationale=(
-                    "Subject-first 9:16 crop with dedicated upper text band."
-                ),
-            )
+                typography = self.typography.plan(
+                    copy=concept.copy.blocks,
+                    composition=composition,
+                    target=target,
+                )
+
+                render_plan = ThumbnailRenderPlan(
+                    canvas_width=target.size.width,
+                    canvas_height=target.size.height,
+                    composition=composition,
+                    typography=typography,
+                    visual_treatment=VisualTreatmentPlan(
+                        contrast=1.10,
+                        saturation=1.10,
+                        sharpness=1.08,
+                        vignette=0.12,
+                        overlay_opacity=0.0,
+                    ),
+                )
+
+                candidates.append(
+                    LayoutCandidate(
+                        candidate_id=(
+                            f"clip_{packaging.clip_id}_"
+                            f"v11_layout_{index:03d}"
+                        ),
+                        plan=render_plan,
+                        rationale=(
+                            f"Subject-first 9:16 crop with {side} text band."
+                        ),
+                    )
+                )
 
             negotiation = self.negotiator.negotiate(
-                candidates=(candidate,),
+                candidates=tuple(candidates),
                 target=target,
             )
 
