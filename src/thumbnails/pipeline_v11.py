@@ -163,13 +163,30 @@ class ThumbnailPipelineV11:
 
             candidates: list[LayoutCandidate] = []
 
-            for index, side in enumerate(("top", "bottom"), start=1):
-                from src.thumbnails.layout.v11_composition import V11CompositionConfig
+            # Stage the subject against multiple deterministic composition
+            # structures. The old pipeline only varied top vs bottom while
+            # keeping the subject centered, which guaranteed collisions when
+            # the person occupied the middle of the frame.
+            layout_variants = (
+                ("top", "right"),
+                ("top", "left"),
+                ("bottom", "right"),
+                ("bottom", "left"),
+                ("top", "center"),
+                ("bottom", "center"),
+            )
 
+            from src.thumbnails.layout.v11_composition import V11CompositionConfig
+
+            for index, (text_side, subject_side) in enumerate(
+                layout_variants,
+                start=1,
+            ):
                 try:
                     composition = V11CompositionPlanner(
                         V11CompositionConfig(
-                            preferred_text_side=side,
+                            preferred_text_side=text_side,
+                            preferred_subject_side=subject_side,
                         )
                     ).plan(
                         selected_frame=selected,
@@ -208,7 +225,8 @@ class ThumbnailPipelineV11:
                         ),
                         plan=render_plan,
                         rationale=(
-                            f"Subject-first 9:16 crop with {side} text band."
+                            "Subject/text staged composition: "
+                            f"text={text_side}, subject={subject_side}."
                         ),
                     )
                 )
