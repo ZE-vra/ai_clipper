@@ -29,6 +29,9 @@ class _Tensor:
     def __len__(self):
         return len(self._value)
 
+    def __getitem__(self, index):
+        return _Tensor(self._value[index])
+
 
 class _Boxes:
     def __init__(self):
