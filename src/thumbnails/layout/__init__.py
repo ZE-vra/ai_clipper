@@ -1,6 +1,14 @@
-"""Thumbnail composition and typography layout planning."""
+"""Thumbnail composition, typography, and layout negotiation."""
 
 from src.thumbnails.layout.composition import CompositionPlanner, CompositionPlannerConfig
+from src.thumbnails.layout.negotiation import (
+    LayoutCandidate,
+    LayoutEvaluation,
+    LayoutEvaluator,
+    LayoutNegotiationResult,
+    LayoutNegotiator,
+    LayoutNegotiatorConfig,
+)
 from src.thumbnails.layout.typography import (
     HeuristicTextMeasurer,
     TextMeasurement,
@@ -17,4 +25,10 @@ __all__ = [
     "TextMeasurer",
     "TypographyPlanner",
     "TypographyPlannerConfig",
+    "LayoutCandidate",
+    "LayoutEvaluation",
+    "LayoutEvaluator",
+    "LayoutNegotiationResult",
+    "LayoutNegotiator",
+    "LayoutNegotiatorConfig",
 ]
