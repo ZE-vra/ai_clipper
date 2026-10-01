@@ -250,7 +250,10 @@ class V11CompositionPlanner:
         for candidate in candidates:
             subject_overlap = self._overlap(candidate, exclusion)
             ui_overlap = self._ui_overlap(candidate, target)
-            if subject_overlap == 0.0 and ui_overlap <= 0.05:
+            if subject_overlap == 0.0:
+                # UI is handled by TypographyPlanner, which can trim/split the
+                # selected band. Subject collision is the higher-priority
+                # composition failure because it damages the visual focal point.
                 valid.append(candidate)
 
         if valid:
@@ -262,7 +265,7 @@ class V11CompositionPlanner:
         return min(
             candidates,
             key=lambda candidate: (
-                self._overlap(candidate, exclusion) * 3.0
+                self._overlap(candidate, exclusion) * 10.0
                 + self._ui_overlap(candidate, target),
                 -candidate.width * candidate.height,
             ),
