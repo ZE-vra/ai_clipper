@@ -90,6 +90,7 @@ class V11PillowThumbnailRenderer:
 
     def _render_subject_foreground(
         self,
+        canvas: Image.Image,
         plan: ThumbnailRenderPlan,
     ) -> Image.Image:
         """
