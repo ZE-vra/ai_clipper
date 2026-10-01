@@ -166,36 +166,39 @@ class ThumbnailPipelineV11:
             for index, side in enumerate(("top", "bottom"), start=1):
                 from src.thumbnails.layout.v11_composition import V11CompositionConfig
 
-                composition = V11CompositionPlanner(
-                    V11CompositionConfig(
-                        preferred_text_side=side,
+                try:
+                    composition = V11CompositionPlanner(
+                        V11CompositionConfig(
+                            preferred_text_side=side,
+                        )
+                    ).plan(
+                        selected_frame=selected,
+                        asset=asset,
+                        target=target,
+                        source_aspect_ratio=source_aspect_ratio,
                     )
-                ).plan(
-                    selected_frame=selected,
-                    asset=asset,
-                    target=target,
-                    source_aspect_ratio=source_aspect_ratio,
-                )
 
-                typography = self.typography.plan(
-                    copy=concept.copy.blocks,
-                    composition=composition,
-                    target=target,
-                )
+                    typography = self.typography.plan(
+                        copy=concept.copy.blocks,
+                        composition=composition,
+                        target=target,
+                    )
 
-                render_plan = ThumbnailRenderPlan(
-                    canvas_width=target.size.width,
-                    canvas_height=target.size.height,
-                    composition=composition,
-                    typography=typography,
-                    visual_treatment=VisualTreatmentPlan(
-                        contrast=1.10,
-                        saturation=1.10,
-                        sharpness=1.08,
-                        vignette=0.12,
-                        overlay_opacity=0.0,
-                    ),
-                )
+                    render_plan = ThumbnailRenderPlan(
+                        canvas_width=target.size.width,
+                        canvas_height=target.size.height,
+                        composition=composition,
+                        typography=typography,
+                        visual_treatment=VisualTreatmentPlan(
+                            contrast=1.10,
+                            saturation=1.10,
+                            sharpness=1.08,
+                            vignette=0.12,
+                            overlay_opacity=0.0,
+                        ),
+                    )
+                except (TypeError, ValueError):
+                    continue
 
                 candidates.append(
                     LayoutCandidate(
