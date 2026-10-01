@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping, Optional
 
-from src.thumbnails.domain.concepts import CopyRole
 from src.thumbnails.domain.geometry import BoundingBox, Point
 from src.thumbnails.domain.plans import ThumbnailRenderPlan
 from src.thumbnails.domain.target import ThumbnailTarget
