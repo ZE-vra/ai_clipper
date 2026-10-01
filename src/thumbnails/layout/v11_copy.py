@@ -5,7 +5,7 @@ import re
 from src.thumbnails.domain.concepts import CopyBlock, CopyConcept, CopyRole
 
 
-_MONEY_RE = re.compile(r"(?<!\\w)(\\$\\s?\\d[\\d,.]*(?:[KMB])?)(?!\\w)", re.IGNORECASE)
+_MONEY_RE = re.compile(r"(?<!\w)(\$\s?\d[\d,.]*(?:[KMB])?)(?!\w)", re.IGNORECASE)
 
 
 class V11CopyDirector:
