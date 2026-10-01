@@ -173,10 +173,14 @@ class TypographyPlanner:
                     fits = False
                     break
 
+                line_height = max(
+                    1,
+                    round(size * self.config.line_spacing),
+                )
                 block_height = (
-                    len(lines)
-                    * size
-                    * self.config.line_spacing
+                    line_height * (len(lines) - 1)
+                    + measured.height
+                    + (2 * self.config.stroke_width)
                 )
                 drafts.append((block, size, rendered, block_height))
                 total += block_height
