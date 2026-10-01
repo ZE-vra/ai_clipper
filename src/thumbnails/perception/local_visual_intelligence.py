@@ -47,6 +47,7 @@ class LocalVisualIntelligenceAnalyzer:
             str(image),
             classes=[0],
             conf=self._confidence_threshold,
+            imgsz=1024,
             verbose=False,
         )
 
@@ -85,7 +86,7 @@ class LocalVisualIntelligenceAnalyzer:
                 mode="L",
             ).resize(
                 (width, height),
-                Image.Resampling.NEAREST,
+                Image.Resampling.LANCZOS,
             )
 
             mask_path = mask_output_dir / (
