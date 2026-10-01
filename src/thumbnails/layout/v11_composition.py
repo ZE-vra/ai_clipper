@@ -171,7 +171,9 @@ class V11CompositionPlanner:
             "bottom": 0.32,
         }[text_side]
 
-        desired_left = subject.focal_point.x - desired_x * crop_width
+        subject_center_x = center_x
+        subject_center_y = (subject.top + subject.bottom) / 2.0
+        desired_left = subject_center_x - desired_x * crop_width
         min_left = max(
             0.0,
             subject.right
@@ -215,7 +217,7 @@ class V11CompositionPlanner:
                 bottom=1.0,
             )
 
-        desired_top = subject.focal_point.y - desired_y * crop_height
+        desired_top = subject_center_y - desired_y * crop_height
         top = min(max(desired_top, min_top), max_top)
         bottom = top + crop_height
 
