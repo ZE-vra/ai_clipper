@@ -61,8 +61,8 @@ def test_text_band_avoids_primary_subject_when_alternate_band_is_available() -> 
 
 def test_subject_can_be_staged_opposite_the_text() -> None:
     subject = _subject(
-        BoundingBox(0.30, 0.12, 0.62, 0.78),
-        Point(0.46, 0.45),
+        BoundingBox(0.36, 0.12, 0.54, 0.70),
+        Point(0.45, 0.41),
     )
     composition = V11CompositionPlanner(
         __import__(
