@@ -18,6 +18,7 @@ class V11CompositionConfig:
     preferred_text_band_height: float = 0.27
     text_band_margin: float = 0.04
     subject_clearance: float = 0.04
+    preferred_text_side: str = "top"
 
     def __post_init__(self) -> None:
         if not 0.5 <= self.subject_retention <= 1.0:
@@ -28,6 +29,8 @@ class V11CompositionConfig:
             raise ValueError("text_band_margin must be between 0 and 0.2.")
         if self.subject_clearance < 0:
             raise ValueError("subject_clearance must not be negative.")
+        if self.preferred_text_side not in {"top", "bottom"}:
+            raise ValueError("preferred_text_side must be 'top' or 'bottom'.")
 
 
 class V11CompositionPlanner:
@@ -210,7 +213,11 @@ class V11CompositionPlanner:
             1.0 - margin,
         )
 
-        candidates = [top_candidate, bottom_candidate]
+        candidates = (
+            [top_candidate, bottom_candidate]
+            if self.config.preferred_text_side == "top"
+            else [bottom_candidate, top_candidate]
+        )
 
         valid: list[BoundingBox] = []
         for candidate in candidates:
@@ -219,8 +226,6 @@ class V11CompositionPlanner:
                 valid.append(candidate)
 
         if valid:
-            # Prefer the upper band because it survives Shorts UI better and
-            # keeps the subject's face unobstructed.
             return valid[0]
 
         return min(
