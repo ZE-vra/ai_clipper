@@ -27,6 +27,8 @@ class V11CompositionConfig:
     max_semantic_text_overlap: float = 0.08
     semantic_sample_width: int = 96
     semantic_sample_height: int = 160
+    head_region_ratio: float = 0.30
+    important_region_clearance: float = 0.035
 
     def __post_init__(self) -> None:
         if not 0.5 <= self.subject_retention <= 1.0:
@@ -45,6 +47,10 @@ class V11CompositionConfig:
             raise ValueError("max_semantic_text_overlap must be between 0 and 1.")
         if self.semantic_sample_width <= 0 or self.semantic_sample_height <= 0:
             raise ValueError("semantic sample dimensions must be positive.")
+        if not 0.15 <= self.head_region_ratio <= 0.5:
+            raise ValueError("head_region_ratio must be between 0.15 and 0.5.")
+        if self.important_region_clearance < 0:
+            raise ValueError("important_region_clearance must not be negative.")
         if self.preferred_subject_side not in {"left", "center", "right"}:
             raise ValueError(
                 "preferred_subject_side must be 'left', 'center', or 'right'."
@@ -304,13 +310,20 @@ class V11CompositionPlanner:
                 target_height=target_height,
             )
             subject_overlap = self._overlap(region, exclusion)
+            important_overlap = self._important_region_overlap(
+                region,
+                transformed_subject,
+            )
             ui_overlap = self._ui_overlap(region, target)
 
-            # Prefer genuine negative space strongly, but never veto a frame
-            # merely because its subject occupies the whole vertical scene.
+            # A person is not a uniform blob. The upper portion containing
+            # the face/head/cap is a protected visual region. Text crossing
+            # an arm can sometimes work; text crossing the head almost always
+            # creates the exact collision we are trying to eliminate.
             score = (
                 semantic * 12.0
                 + subject_overlap * 20.0
+                + important_overlap * 70.0
                 + ui_overlap * 40.0
                 - min(1.0, region.width / 0.70) * 1.5
             )
@@ -450,6 +463,24 @@ class V11CompositionPlanner:
         left = max(0, (new_width - width) // 2)
         top = max(0, (new_height - height) // 2)
         return resized.crop((left, top, left + width, top + height))
+
+    def _important_region_overlap(
+        self,
+        region: BoundingBox,
+        subject: BoundingBox,
+    ) -> float:
+        """Return the strongest overlap with the subject's protected head zone."""
+        head_bottom = min(
+            1.0,
+            subject.top + subject.height * self.config.head_region_ratio,
+        )
+        head = BoundingBox(
+            left=subject.left,
+            top=max(0.0, subject.top - self.config.important_region_clearance),
+            right=subject.right,
+            bottom=min(1.0, head_bottom + self.config.important_region_clearance),
+        )
+        return self._overlap(region, head)
 
     @staticmethod
     def _expand(bounds: BoundingBox, margin: float) -> BoundingBox:
