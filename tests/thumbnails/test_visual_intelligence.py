@@ -26,6 +26,9 @@ class _Tensor:
     def tolist(self):
         return self._value.tolist()
 
+    def item(self):
+        return self._value.item()
+
     def __len__(self):
         return len(self._value)
 
