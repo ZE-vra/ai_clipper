@@ -78,9 +78,7 @@ class V11PillowThumbnailRenderer:
         gradient_height = int(height * 0.38)
 
         for y in range(gradient_height):
-            strength = int(
-                145 * max(0.0, 1.0 - y / gradient_height)
-            )
+            strength = int(145 * max(0.0, 1.0 - y / gradient_height))
             for x in range(image.width):
                 pixels[x, y] = (0, 0, 0, strength)
 
@@ -115,24 +113,31 @@ class V11PillowThumbnailRenderer:
 
         line_height = max(1, round(block.font_size * block.line_spacing))
         total_height = line_height * (len(lines) - 1) + max(
-            draw.textbbox((0, 0), line, font=font, stroke_width=block.stroke_width)[3]
-            - draw.textbbox((0, 0), line, font=font, stroke_width=block.stroke_width)[1]
+            draw.textbbox(
+                (0, 0),
+                line,
+                font=font,
+                stroke_width=block.stroke_width,
+            )[3]
+            - draw.textbbox(
+                (0, 0),
+                line,
+                font=font,
+                stroke_width=block.stroke_width,
+            )[1]
             for line in lines
         )
 
         y = top + max(0, (bottom - top - total_height) // 2)
 
-        color = (
-            "#FFD400"
-            if block.copy.role is CopyRole.PAYOFF
-            else "#FFFFFF"
-        )
+        color = "#FFD400" if block.copy.role is CopyRole.PAYOFF else "#FFFFFF"
 
-        # A subtle shadow gives large type depth without the old generic
-        # drop-shadow look.
         for line in lines:
             bbox = draw.textbbox(
-                (0, 0), line, font=font, stroke_width=block.stroke_width
+                (0, 0),
+                line,
+                font=font,
+                stroke_width=block.stroke_width,
             )
             line_width = bbox[2] - bbox[0]
 
@@ -211,7 +216,9 @@ class V11PillowThumbnailRenderer:
             ),
             fill=0,
         )
-        mask = ImageFilter.GaussianBlur(radius=36)
+
+        # Blur the actual mask, not the ImageFilter object.
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=36))
 
         alpha = mask.point(
             lambda value: min(255, int(value * strength))
@@ -224,20 +231,23 @@ class V11PillowThumbnailRenderer:
             overlay,
         ).convert("RGB")
 
-
     @staticmethod
     def _font(name: str, size: int, weight: str):
         candidates = []
         if name.lower() == "arial":
             if weight.lower() == "bold":
-                candidates.extend([
-                    Path("C:/Windows/Fonts/arialbd.ttf"),
-                    Path("C:/Windows/Fonts/Arial_Bold.ttf"),
-                ])
+                candidates.extend(
+                    [
+                        Path("C:/Windows/Fonts/arialbd.ttf"),
+                        Path("C:/Windows/Fonts/Arial_Bold.ttf"),
+                    ]
+                )
             else:
                 candidates.append(Path("C:/Windows/Fonts/arial.ttf"))
 
-        candidates.append(Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
+        candidates.append(
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+        )
 
         for candidate in candidates:
             if candidate.exists():
