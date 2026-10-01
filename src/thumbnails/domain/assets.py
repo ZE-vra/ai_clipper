@@ -19,13 +19,30 @@ class AssetProvenanceKind(str, Enum):
 
 @dataclass(frozen=True)
 class AssetProvenance:
-    """Lineage metadata for an asset."""
+    """Lineage metadata for an asset.
+
+    The SOURCE_FRAME-style attributes are temporary compatibility shims for
+    the legacy thumbnail pipeline while the v2 path migrates.
+    """
 
     kind: AssetProvenanceKind
     source_asset_ids: tuple[str, ...] = ()
     source_timestamps: tuple[float, ...] = ()
     generator: str | None = None
     generation_prompt_id: str | None = None
+
+    @property
+    def value(self) -> str:
+        return self.kind.value
+
+
+AssetProvenance.SOURCE_FRAME = AssetProvenance(AssetProvenanceKind.SOURCE_FRAME)
+AssetProvenance.ENHANCED_FRAME = AssetProvenance(AssetProvenanceKind.ENHANCED_FRAME)
+AssetProvenance.GENERATED = AssetProvenance(AssetProvenanceKind.GENERATED)
+AssetProvenance.GENERATIVE_EXTENSION = AssetProvenance(AssetProvenanceKind.GENERATIVE_EXTENSION)
+AssetProvenance.HYBRID = AssetProvenance(AssetProvenanceKind.HYBRID)
+AssetProvenance.GRAPHIC = AssetProvenance(AssetProvenanceKind.GRAPHIC)
+AssetProvenance.USER_PROVIDED = AssetProvenance(AssetProvenanceKind.USER_PROVIDED)
 
 
 @dataclass(frozen=True)
@@ -55,7 +72,7 @@ class FrameCandidate:
     candidate_id: str
     timestamp: float
     asset: VisualAsset
-    perception: FramePerception
+    perception: FramePerception | None = None
     strengths: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
     shot_id: str | None = None
