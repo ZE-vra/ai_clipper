@@ -114,12 +114,19 @@ class V11PillowThumbnailRenderer:
         source = self._open(asset.path).convert("RGB")
         mask = self._open(mask_path).convert("L")
 
+        # YOLO produces a binary instance mask. Refine the boundary before
+        # compositing so the foreground does not carry a hard pixel staircase
+        # or a bright halo into the final thumbnail.
+        mask = mask.filter(ImageFilter.MinFilter(3))
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=0.8))
+
         if placement.crop_bounds is not None:
             source = self._crop(source, placement.crop_bounds)
             mask = self._crop(mask, placement.crop_bounds)
 
         source = self._cover(source, plan.canvas_width, plan.canvas_height)
         mask = self._cover(mask, plan.canvas_width, plan.canvas_height)
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=0.6))
 
         source = ImageEnhance.Contrast(source).enhance(1.08)
         source = ImageEnhance.Color(source).enhance(1.04)
