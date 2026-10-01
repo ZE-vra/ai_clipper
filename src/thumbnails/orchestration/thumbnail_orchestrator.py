@@ -3,10 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from src.thumbnails.domain.assets import FrameCandidate, VisualAsset
+from src.thumbnails.domain.assets import FrameCandidate
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
-from src.thumbnails.domain.geometry import Size
 from src.thumbnails.domain.plans import ThumbnailRenderPlan, VisualTreatmentPlan
 from src.thumbnails.domain.results import ThumbnailResult, ThumbnailResultStatus
 from src.thumbnails.domain.target import ThumbnailTarget
@@ -138,9 +137,6 @@ class ThumbnailOrchestrator:
                 )[: self.max_matches_per_concept]
 
                 for match in matches:
-                    if VisualAsset is None:  # pragma: no cover
-                        raise AssertionError("unreachable")
-
                     candidate = next(
                         candidate
                         for candidate in candidates
