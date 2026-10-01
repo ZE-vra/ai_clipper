@@ -45,6 +45,7 @@ class V11PillowThumbnailRenderer:
 
         canvas = self._render_visual(plan)
         canvas = self._treat(canvas, plan)
+        canvas = self._dim_background_around_subject(canvas, plan)
         # V1.2.1 keeps the semantic subject available as a visual layer,
         # but never allows the subject mask to destroy the headline. Text is
         # therefore rendered last; composition still routes it away from the
@@ -92,6 +93,45 @@ class V11PillowThumbnailRenderer:
             overlay,
         ).convert("RGB")
 
+    def _dim_background_around_subject(
+        self,
+        canvas: Image.Image,
+        plan: ThumbnailRenderPlan,
+    ) -> Image.Image:
+        """Create restrained subject/background separation without relighting."""
+        placement = plan.composition.visual_placements[0]
+        asset = self._asset_resolver.resolve(placement.asset_id)
+
+        if not asset.subject_mask_path:
+            return canvas
+
+        mask_path = Path(asset.subject_mask_path)
+        if not mask_path.is_file():
+            return canvas
+
+        mask = self._open(mask_path).convert("L")
+
+        # Use the same crop and cover transform as the foreground subject so
+        # separation remains registered with the actual composite.
+        if placement.crop_bounds is not None:
+            mask = self._crop(mask, placement.crop_bounds)
+
+        mask = self._cover(mask, plan.canvas_width, plan.canvas_height)
+
+        # Protect the subject and softly darken the surrounding plane. The
+        # broad feather avoids a visible cutout-shaped border.
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=18.0))
+        outside = mask.point(lambda value: 255 - value)
+
+        alpha = outside.point(lambda value: round(value * 0.14))
+        overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        overlay.putalpha(alpha)
+
+        return Image.alpha_composite(
+            canvas.convert("RGBA"),
+            overlay,
+        ).convert("RGB")
+
     def _render_subject_foreground(
         self,
         canvas: Image.Image,
@@ -123,7 +163,7 @@ class V11PillowThumbnailRenderer:
         # the matte before feathering it so the final edge is formed from the
         # interior of the subject rather than from contaminated boundary
         # pixels. Pillow's MinFilter is a deterministic erosion operation.
-        erosion_size = 7 if min(mask.size) >= 1000 else 5
+        erosion_size = 15 if min(mask.size) >= 1000 else 9
         mask = mask.filter(ImageFilter.MinFilter(erosion_size))
         mask = mask.filter(ImageFilter.GaussianBlur(radius=0.7))
 
