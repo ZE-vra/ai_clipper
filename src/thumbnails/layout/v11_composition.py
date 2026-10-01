@@ -18,6 +18,7 @@ class V11CompositionConfig:
     preferred_text_band_height: float = 0.27
     text_band_margin: float = 0.04
     subject_clearance: float = 0.04
+    text_subject_clearance: float = 0.03
     preferred_text_side: str = "top"
 
     def __post_init__(self) -> None:
@@ -29,6 +30,8 @@ class V11CompositionConfig:
             raise ValueError("text_band_margin must be between 0 and 0.2.")
         if self.subject_clearance < 0:
             raise ValueError("subject_clearance must not be negative.")
+        if self.text_subject_clearance < 0:
+            raise ValueError("text_subject_clearance must not be negative.")
         if self.preferred_text_side not in {"top", "bottom"}:
             raise ValueError("preferred_text_side must be 'top' or 'bottom'.")
 
@@ -37,9 +40,9 @@ class V11CompositionPlanner:
     """
     Builds a genuinely vertical composition from a clean source frame.
 
-    Unlike the original planner, V1.1 treats the subject as the visual hero,
-    computes the subject's position after cropping, and reserves a dedicated
-    text band rather than placing text in an arbitrary side rectangle.
+    The primary subject is treated as a protected visual region. Cropping must
+    preserve the subject with breathing room, and text bands must stay outside
+    an expanded subject exclusion zone whenever a viable band exists.
     """
 
     def __init__(self, config: V11CompositionConfig | None = None) -> None:
@@ -63,6 +66,7 @@ class V11CompositionPlanner:
             center_x = 0.5
             crop_bounds = BoundingBox(0.0, 0.0, 1.0, 1.0)
             transformed_subject = BoundingBox(0.35, 0.20, 0.65, 0.80)
+            transformed_focal = Point(0.5, 0.5)
         else:
             center_x = subject.focal_point.x
             crop_bounds = self._crop_window(
@@ -75,17 +79,14 @@ class V11CompositionPlanner:
                 subject.bounds,
                 crop_bounds,
             )
+            transformed_focal = Point(
+                x=self._transform_x(subject.focal_point.x, crop_bounds),
+                y=self._transform_y(subject.focal_point.y, crop_bounds),
+            )
 
         placement = VisualPlacement(
             asset_id=asset.asset_id,
-            focal_point=Point(
-                x=self._transform_x(center_x, crop_bounds),
-                y=(
-                    subject.focal_point.y
-                    if subject is not None
-                    else 0.5
-                ),
-            ),
+            focal_point=transformed_focal,
             scale=1.0,
             center=Point(
                 x=(crop_bounds.left + crop_bounds.right) / 2.0,
@@ -115,39 +116,40 @@ class V11CompositionPlanner:
         if source_aspect_ratio <= target_aspect_ratio:
             return BoundingBox(0.0, 0.0, 1.0, 1.0)
 
-        # A full-height 9:16 crop is already a very aggressive crop from
-        # landscape footage. Only reduce height when the primary subject
-        # leaves enough breathing room to do so safely.
         crop_left, crop_right = calculate_horizontal_crop_bounds(
             source_aspect_ratio=source_aspect_ratio,
             target_aspect_ratio=target_aspect_ratio,
             center_x=center_x,
         )
-
         crop_width = crop_right - crop_left
-        required_height_for_subject = (
-            subject.height / self.config.subject_retention
-            + 2 * self.config.subject_clearance
+
+        # The crop height is constrained by the subject's actual bounds, not
+        # merely its focal point. This prevents heads/hats or lower body parts
+        # from being sliced by an otherwise "valid" zoom.
+        required_height = max(
+            subject.height / self.config.subject_retention,
+            subject.height + 2.0 * self.config.subject_clearance,
+            0.72,
         )
-        required_height_for_width = (
+        required_width = (
             (
                 subject.width / self.config.subject_retention
-                + 2 * self.config.subject_clearance
+                + 2.0 * self.config.subject_clearance
             )
             * source_aspect_ratio
             / target_aspect_ratio
         )
-
-        max_zoom_height = min(
-            1.0,
-            max(
-                required_height_for_subject,
-                required_height_for_width,
-                0.72,
-            ),
+        required_height = max(
+            required_height,
+            required_width,
         )
 
-        if max_zoom_height >= 0.98:
+        crop_height = min(1.0, required_height)
+
+        # If the requested retention cannot geometrically contain the subject
+        # with clearance, fall back to the full source height rather than
+        # accepting a visibly clipped subject.
+        if crop_height >= 0.98:
             return BoundingBox(
                 left=crop_left,
                 top=0.0,
@@ -155,11 +157,9 @@ class V11CompositionPlanner:
                 bottom=1.0,
             )
 
-        crop_height = max_zoom_height
-        required_width = crop_height * target_aspect_ratio / source_aspect_ratio
-
-        if required_width < crop_width:
-            crop_width = required_width
+        required_crop_width = crop_height * target_aspect_ratio / source_aspect_ratio
+        if required_crop_width < crop_width:
+            crop_width = required_crop_width
 
         left = min(
             max(0.0, center_x - crop_width / 2.0),
@@ -167,10 +167,27 @@ class V11CompositionPlanner:
         )
         right = left + crop_width
 
-        top = min(
-            max(0.0, subject.focal_point.y - crop_height / 2.0),
-            1.0 - crop_height,
+        # Find every legal vertical window that contains the subject plus
+        # clearance. Then choose the one closest to the subject focal point.
+        min_top = max(
+            0.0,
+            subject.bottom + self.config.subject_clearance - crop_height,
         )
+        max_top = min(
+            1.0 - crop_height,
+            subject.top - self.config.subject_clearance,
+        )
+
+        if min_top > max_top:
+            return BoundingBox(
+                left=crop_left,
+                top=0.0,
+                right=crop_right,
+                bottom=1.0,
+            )
+
+        preferred_top = subject.top + subject.height / 2.0 - crop_height / 2.0
+        top = min(max(preferred_top, min_top), max_top)
         bottom = top + crop_height
 
         return BoundingBox(left, top, right, bottom)
@@ -180,7 +197,12 @@ class V11CompositionPlanner:
         return max(0.0, min(1.0, (x - crop.left) / crop.width))
 
     @staticmethod
+    def _transform_y(y: float, crop: BoundingBox) -> float:
+        return max(0.0, min(1.0, (y - crop.top) / crop.height))
+
+    @classmethod
     def _transform_bounds(
+        cls,
         bounds: BoundingBox,
         crop: BoundingBox,
     ) -> BoundingBox:
@@ -219,21 +241,40 @@ class V11CompositionPlanner:
             else [bottom_candidate, top_candidate]
         )
 
+        exclusion = self._expand(
+            transformed_subject,
+            self.config.text_subject_clearance,
+        )
+
         valid: list[BoundingBox] = []
         for candidate in candidates:
-            overlap = self._overlap(candidate, transformed_subject)
-            if overlap <= 0.08 and self._ui_overlap(candidate, target) <= 0.05:
+            subject_overlap = self._overlap(candidate, exclusion)
+            ui_overlap = self._ui_overlap(candidate, target)
+            if subject_overlap == 0.0 and ui_overlap <= 0.05:
                 valid.append(candidate)
 
         if valid:
             return valid[0]
 
+        # If neither full band is viable, choose the candidate with the
+        # greatest usable area after accounting for subject and UI conflicts.
+        # TypographyPlanner will further trim the selected region around UI.
         return min(
             candidates,
             key=lambda candidate: (
-                self._overlap(candidate, transformed_subject)
-                + self._ui_overlap(candidate, target)
+                self._overlap(candidate, exclusion) * 3.0
+                + self._ui_overlap(candidate, target),
+                -candidate.width * candidate.height,
             ),
+        )
+
+    @staticmethod
+    def _expand(bounds: BoundingBox, margin: float) -> BoundingBox:
+        return BoundingBox(
+            left=max(0.0, bounds.left - margin),
+            top=max(0.0, bounds.top - margin),
+            right=min(1.0, bounds.right + margin),
+            bottom=min(1.0, bounds.bottom + margin),
         )
 
     @staticmethod
