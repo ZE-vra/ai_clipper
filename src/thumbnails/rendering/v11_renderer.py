@@ -200,23 +200,30 @@ class V11PillowThumbnailRenderer:
     @staticmethod
     def _vignette(image: Image.Image, strength: float) -> Image.Image:
         width, height = image.size
-        mask = Image.new("L", (width, height), 0)
+        mask = Image.new("L", (width, height), 255)
         draw = ImageDraw.Draw(mask)
         draw.ellipse(
             (
-                -width * 0.20,
-                -height * 0.12,
-                width * 1.20,
-                height * 1.12,
+                -width * 0.18,
+                -height * 0.10,
+                width * 1.18,
+                height * 1.10,
             ),
-            fill=255,
+            fill=0,
         )
-        mask = ImageEnhance.Contrast(mask).enhance(1.0 + strength * 2.0)
-        mask = ImageFilter.GaussianBlur(radius=28)
+        mask = ImageFilter.GaussianBlur(radius=36)
 
+        alpha = mask.point(
+            lambda value: min(255, int(value * strength))
+        )
         overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        overlay.putalpha(mask.point(lambda value: int(value * strength)))
-        return Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
+        overlay.putalpha(alpha)
+
+        return Image.alpha_composite(
+            image.convert("RGBA"),
+            overlay,
+        ).convert("RGB")
+
 
     @staticmethod
     def _font(name: str, size: int, weight: str):
