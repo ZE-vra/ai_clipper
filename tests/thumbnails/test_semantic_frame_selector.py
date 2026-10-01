@@ -66,6 +66,32 @@ def test_semantic_selector_prefers_frame_with_head_clearance() -> None:
     assert selected.perception.frame_path == good
 
 
+def test_semantic_selector_prefers_real_side_negative_space() -> None:
+    selector = SemanticFrameSelector(semantic_weight=0.35)
+
+    centered = Path("centered.jpg")
+    staged = Path("staged.jpg")
+
+    candidates = [
+        _perception(centered, 0.92),
+        _perception(staged, 0.88),
+    ]
+    semantic = {
+        centered: _semantic(
+            centered,
+            BoundingBox(0.18, 0.10, 0.82, 0.90),
+        ),
+        staged: _semantic(
+            staged,
+            BoundingBox(0.52, 0.10, 0.84, 0.90),
+        ),
+    }
+
+    selected = selector.select(candidates, semantic)
+
+    assert selected.perception.frame_path == staged
+
+
 def test_semantic_selector_preserves_base_selection_without_semantic_evidence() -> None:
     selector = SemanticFrameSelector(semantic_weight=0.20)
 
