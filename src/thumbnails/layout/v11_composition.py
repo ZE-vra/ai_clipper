@@ -155,8 +155,15 @@ class V11CompositionPlanner:
         required_crop_width = (
             crop_height * target_aspect_ratio / source_aspect_ratio
         )
-        if required_crop_width < crop_width:
-            crop_width = required_crop_width
+        if subject_side == "center":
+            if required_crop_width < crop_width:
+                crop_width = required_crop_width
+        else:
+            # Side staging needs enough horizontal room to move the subject
+            # without clipping its protected bounds. The base 9:16 crop is
+            # the minimum useful width for that job, so do not shrink it just
+            # because the subject itself could fit in a tighter crop.
+            crop_height = 1.0
 
         # Decide where the subject should land in the output. This is the
         # critical V1.1 change: the image is staged for the text instead of
@@ -352,16 +359,22 @@ class V11CompositionPlanner:
                 )
             )
 
-            for horizontal in (
-                BoundingBox(margin, 0.0, max(margin, exclusion.left - margin), 1.0),
-                BoundingBox(
-                    min(1.0 - margin, exclusion.right + margin),
-                    0.0,
-                    1.0 - margin,
-                    1.0,
-                ),
+            horizontal_regions: list[BoundingBox] = [
                 BoundingBox(margin, 0.0, 1.0 - margin, 1.0),
-            ):
+            ]
+            left_right = exclusion.left - margin
+            if left_right > margin:
+                horizontal_regions.append(
+                    BoundingBox(margin, 0.0, left_right, 1.0)
+                )
+
+            right_left = exclusion.right + margin
+            if right_left < 1.0 - margin:
+                horizontal_regions.append(
+                    BoundingBox(right_left, 0.0, 1.0 - margin, 1.0)
+                )
+
+            for horizontal in horizontal_regions:
                 intersection = self._intersection(vertical, horizontal)
                 if intersection is not None and intersection.width > 0:
                     candidates.append(intersection)
