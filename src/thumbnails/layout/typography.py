@@ -119,64 +119,136 @@ class TypographyPlanner:
             blocks, region, alignment, target.size.width, target.size.height
         )))
 
-    def _fit(self, blocks: tuple[CopyBlock, ...], region: BoundingBox,
-             alignment: str, canvas_width: int, canvas_height: int) -> list[TypographyBlockPlan]:
-        width = (region.width - 2 * self.config.horizontal_padding) * canvas_width
-        height = (region.height - 2 * self.config.vertical_padding) * canvas_height
+    def _fit(
+        self,
+        blocks: tuple[CopyBlock, ...],
+        region: BoundingBox,
+        alignment: str,
+        canvas_width: int,
+        canvas_height: int,
+    ) -> list[TypographyBlockPlan]:
+        width = (
+            region.width - 2 * self.config.horizontal_padding
+        ) * canvas_width
+        height = (
+            region.height - 2 * self.config.vertical_padding
+        ) * canvas_height
+
         if width <= 0 or height <= 0:
             raise ValueError("Typography region has no usable interior.")
 
-        for scale in (1.00, 0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65):
+        minimum_scale = min(
+            self.config.minimum_font_size
+            / (
+                self.config.base_font_size
+                * getattr(self.config, self._ROLE_SCALES[block.role])
+                * block.emphasis
+            )
+            for block in blocks
+        )
+
+        scale = 1.0
+
+        while scale >= minimum_scale - 0.0001:
             drafts: list[tuple[CopyBlock, int, str, float]] = []
             total = 0.0
             fits = True
+
             for block in blocks:
                 size = self._font_size(block, scale)
                 rendered, lines = self._wrap(block.text, size, width)
+
                 if len(lines) > self.config.max_lines_per_block:
                     fits = False
                     break
+
                 measured = self.measurer.measure(
-                    rendered, font_name=self.config.font_name, font_size=size, weight=self.config.weight
+                    rendered,
+                    font_name=self.config.font_name,
+                    font_size=size,
+                    weight=self.config.weight,
                 )
+
                 if measured.width > width + 0.5:
                     fits = False
                     break
-                block_height = len(lines) * size * self.config.line_spacing
+
+                block_height = (
+                    len(lines)
+                    * size
+                    * self.config.line_spacing
+                )
                 drafts.append((block, size, rendered, block_height))
                 total += block_height
 
-            if not fits:
-                continue
-            total += max(0, len(drafts) - 1) * self.config.block_gap * canvas_height
-            if total > height + 0.5:
-                continue
-
-            cursor = region.top * canvas_height + self.config.vertical_padding * canvas_height
-            cursor += (height - total) / 2
-            result: list[TypographyBlockPlan] = []
-            for index, (block, size, rendered, block_height) in enumerate(drafts):
-                top = cursor / canvas_height
-                bottom = (cursor + block_height) / canvas_height
-                bounds = BoundingBox(
-                    region.left + self.config.horizontal_padding, top,
-                    region.right - self.config.horizontal_padding, bottom
+            if fits:
+                total += (
+                    max(0, len(drafts) - 1)
+                    * self.config.block_gap
+                    * canvas_height
                 )
-                result.append(TypographyBlockPlan(
-                    copy=block, font_name=self.config.font_name, font_size=size,
-                    weight=self.config.weight, alignment=alignment, color=self.config.color,
-                    position=Point(self._anchor_x(bounds, alignment), (top + bottom) / 2),
-                    text_bounds=bounds, max_lines=self.config.max_lines_per_block,
-                    line_spacing=self.config.line_spacing, rendered_text=rendered,
-                    stroke_color=self.config.stroke_color, stroke_width=self.config.stroke_width,
-                ))
-                cursor += block_height
-                if index < len(drafts) - 1:
-                    cursor += self.config.block_gap * canvas_height
-            return result
 
-        raise ValueError("Copy cannot fit without violating minimum font size or line limits.")
+                if total <= height + 0.5:
+                    cursor = (
+                        region.top * canvas_height
+                        + self.config.vertical_padding * canvas_height
+                    )
+                    cursor += (height - total) / 2
 
+                    result: list[TypographyBlockPlan] = []
+
+                    for index, (
+                        block,
+                        size,
+                        rendered,
+                        block_height,
+                    ) in enumerate(drafts):
+                        top = cursor / canvas_height
+                        bottom = (cursor + block_height) / canvas_height
+
+                        bounds = BoundingBox(
+                            region.left + self.config.horizontal_padding,
+                            top,
+                            region.right - self.config.horizontal_padding,
+                            bottom,
+                        )
+
+                        result.append(
+                            TypographyBlockPlan(
+                                copy=block,
+                                font_name=self.config.font_name,
+                                font_size=size,
+                                weight=self.config.weight,
+                                alignment=alignment,
+                                color=self.config.color,
+                                position=Point(
+                                    self._anchor_x(bounds, alignment),
+                                    (top + bottom) / 2,
+                                ),
+                                text_bounds=bounds,
+                                max_lines=self.config.max_lines_per_block,
+                                line_spacing=self.config.line_spacing,
+                                rendered_text=rendered,
+                                stroke_color=self.config.stroke_color,
+                                stroke_width=self.config.stroke_width,
+                            )
+                        )
+
+                        cursor += block_height
+
+                        if index < len(drafts) - 1:
+                            cursor += (
+                                self.config.block_gap
+                                * canvas_height
+                            )
+
+                    return result
+
+            scale -= 0.01
+
+        raise ValueError(
+            "Copy cannot fit without violating minimum font size or line limits."
+        )
     def _wrap(self, text: str, size: int, width: float) -> tuple[str, list[str]]:
         words = text.split()
         if not words:
