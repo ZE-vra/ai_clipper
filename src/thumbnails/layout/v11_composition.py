@@ -24,7 +24,7 @@ class V11CompositionConfig:
     text_subject_clearance: float = 0.03
     preferred_text_side: str = "top"
     preferred_subject_side: str = "center"
-    max_semantic_text_overlap: float = 0.01
+    max_semantic_text_overlap: float = 0.08
     semantic_sample_width: int = 96
     semantic_sample_height: int = 160
 
@@ -378,7 +378,7 @@ class V11CompositionPlanner:
                         -region.width * region.height,
                     ),
                 )
-            raise ValueError("No semantically safe typography region remains.")
+            raise ValueError("No viable typography region remains.")
 
         return candidate
 
