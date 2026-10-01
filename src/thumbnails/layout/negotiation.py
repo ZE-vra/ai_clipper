@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Mapping, Optional
 
 from src.thumbnails.domain.geometry import BoundingBox, Point
+from src.thumbnails.domain.concepts import CopyRole
 from src.thumbnails.domain.plans import ThumbnailRenderPlan
 from src.thumbnails.domain.target import ThumbnailTarget
 
@@ -102,7 +103,11 @@ class LayoutEvaluator:
         plan = candidate.plan
         hard_failures: list[str] = []
         soft_failures: list[str] = []
-        score = 100.0
+
+        # Start from a neutral structural score rather than 100. Scores are
+        # assembled from independent quality components below so stronger
+        # candidates can actually distinguish themselves.
+        score = 50.0
 
         if plan.canvas_width != target.size.width or plan.canvas_height != target.size.height:
             hard_failures.append("canvas dimensions do not match target")
@@ -155,27 +160,48 @@ class LayoutEvaluator:
                     f"{block.copy.text!r} is close to the primary focal point"
                 )
 
+        typography_score = 0.0
+        copy_score = 0.0
+        hierarchy_bonus = 0.0
+
         if blocks:
             primary_font = max(block.font_size for block in blocks)
+
+            # Typography size contributes up to 20 points. Reaching the
+            # configured minimum earns half credit; larger type earns more
+            # until the component is saturated.
+            font_ratio = min(
+                1.0,
+                primary_font
+                / (self.config.minimum_primary_font_size * 2.0),
+            )
+            typography_score = font_ratio * 20.0
+
             if primary_font < self.config.minimum_primary_font_size:
                 soft_failures.append("primary typography is too small")
-            else:
-                score += min(8.0, (primary_font - self.config.minimum_primary_font_size) / 10.0)
 
             total_words = sum(
                 len((block.rendered_text or block.copy.text).split())
                 for block in blocks
             )
-            if total_words > self.config.maximum_word_count:
+
+            if total_words <= self.config.maximum_word_count:
+                copy_score = 15.0
+            else:
                 soft_failures.append("thumbnail copy is too long")
-                score -= min(18.0, (total_words - self.config.maximum_word_count) * 6.0)
+                excess_words = total_words - self.config.maximum_word_count
+                copy_score = max(0.0, 15.0 - excess_words * 5.0)
 
             hierarchy_score = self._hierarchy_score(blocks)
             if hierarchy_score < 1.0:
                 soft_failures.append("typography hierarchy is too flat")
-                score -= 12.0
             else:
-                score += min(8.0, (hierarchy_score - 1.0) * 20.0)
+                hierarchy_bonus = min(
+                    15.0,
+                    max(0.0, (hierarchy_score - 1.0) * 15.0),
+                )
+
+            score += typography_score + copy_score + hierarchy_bonus
         else:
             hard_failures.append("typography contains no blocks")
 
@@ -203,6 +229,9 @@ class LayoutEvaluator:
                 "ui_overlap": ui_overlap,
                 "focal_clearance": focal_clearance,
                 "safe_coverage": safe_coverage,
+                "typography_score": typography_score,
+                "copy_score": copy_score,
+                "hierarchy_bonus": hierarchy_bonus,
             },
         )
 
