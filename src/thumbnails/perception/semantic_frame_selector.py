@@ -26,13 +26,16 @@ class SemanticFrameSelector:
         self,
         *,
         scorer: FrameCandidateScorer | None = None,
-        semantic_weight: float = 0.20,
+        semantic_weight: float = 0.35,
         preferred_edge_clearance: float = 0.08,
+        minimum_text_space: float = 0.24,
     ) -> None:
         if not 0.0 <= semantic_weight <= 1.0:
             raise ValueError("semantic_weight must be between 0 and 1.")
         if preferred_edge_clearance <= 0.0:
             raise ValueError("preferred_edge_clearance must be positive.")
+        if minimum_text_space <= 0.0 or minimum_text_space >= 0.5:
+            raise ValueError("minimum_text_space must be between 0 and 0.5.")
 
         self.scorer = scorer or FrameCandidateScorer()
         self.semantic_weight = semantic_weight
@@ -114,4 +117,24 @@ class SemanticFrameSelector:
         )
         body_edge_score = normalized(body_edge_clearance)
 
-        return 0.75 * head_edge_score + 0.25 * body_edge_score
+        # Prefer frames that naturally expose a meaningful left/right field
+        # for typography instead of forcing text onto the subject's torso.
+        side_space = max(bounds.left, 1.0 - bounds.right)
+        upper_space = max(0.0, bounds.top)
+        lower_space = max(0.0, 1.0 - bounds.bottom)
+
+        side_score = min(
+            1.0,
+            side_space / self.minimum_text_space,
+        )
+        vertical_score = min(
+            1.0,
+            max(upper_space, lower_space) / self.minimum_text_space,
+        )
+
+        return (
+            0.50 * head_edge_score
+            + 0.20 * body_edge_score
+            + 0.25 * side_score
+            + 0.05 * vertical_score
+        )
