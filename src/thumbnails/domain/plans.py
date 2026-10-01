@@ -208,3 +208,26 @@ class ThumbnailRenderPlan:
             raise ValueError(
                 "canvas_height must be greater than 0."
             )
+
+
+@dataclass(frozen=True)
+class AssetPlan:
+    """Executable visual-asset construction recipe for a concept."""
+
+    plan_id: str
+    concept_id: str
+    strategy: "VisualStrategy"
+    source_asset_ids: tuple[str, ...] = ()
+    operations: tuple["AssetOperation", ...] = ()
+    requirements: tuple[str, ...] = ()
+    rationale: str = ""
+    estimated_cost: float = 0.0
+    plan_fingerprint: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.plan_id.strip():
+            raise ValueError("plan_id must not be blank.")
+        if not self.concept_id.strip():
+            raise ValueError("concept_id must not be blank.")
+        if self.estimated_cost < 0:
+            raise ValueError("estimated_cost must not be negative.")
