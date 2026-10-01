@@ -70,11 +70,12 @@ class ThumbnailConcept:
     """A creative direction; it does not select a source frame."""
 
     concept_id: str
-    title: str
-    visual_idea: str
-    copy: CopyConcept
-    curiosity_mechanism: str
-    emotional_direction: str
+    visual_strategy: VisualStrategy | None = None
+    title: str = ""
+    visual_idea: str = ""
+    copy: CopyConcept | None = None
+    curiosity_mechanism: str = ""
+    emotional_direction: str = ""
     required_visual_evidence: tuple[str, ...] = ()
     preferred_entities: tuple[str, ...] = ()
     preferred_objects: tuple[str, ...] = ()
@@ -86,13 +87,16 @@ class ThumbnailConcept:
     def __post_init__(self) -> None:
         if not self.concept_id.strip():
             raise ValueError("concept_id must not be blank.")
-        if not self.title.strip():
-            raise ValueError("title must not be blank.")
-        if not self.visual_idea.strip():
-            raise ValueError("visual_idea must not be blank.")
-        if not self.curiosity_mechanism.strip():
-            raise ValueError("curiosity_mechanism must not be blank.")
-        if not self.emotional_direction.strip():
-            raise ValueError("emotional_direction must not be blank.")
-        if not self.candidate_strategies:
+        # During migration, legacy callers may provide only visual_strategy/copy.
+        if not self.title.strip() and self.visual_strategy is None:
+            raise ValueError("title must not be blank for v2 concepts.")
+        if not self.visual_idea.strip() and self.visual_strategy is None:
+            raise ValueError("visual_idea must not be blank for v2 concepts.")
+        if self.visual_strategy is None and not self.curiosity_mechanism.strip():
+            raise ValueError("curiosity_mechanism must not be blank for v2 concepts.")
+        if self.visual_strategy is None and not self.emotional_direction.strip():
+            raise ValueError("emotional_direction must not be blank for v2 concepts.")
+        if self.visual_strategy is None and self.copy is None:
+            raise ValueError("copy must be provided for v2 concepts.")
+        if not self.candidate_strategies and self.visual_strategy is None:
             raise ValueError("candidate_strategies must contain at least one strategy.")
