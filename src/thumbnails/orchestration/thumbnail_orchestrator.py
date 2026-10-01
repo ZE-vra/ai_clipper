@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from src.thumbnails.domain.assets import FrameCandidate
+from src.thumbnails.domain.concepts import VisualStrategy
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
 from src.thumbnails.domain.plans import ThumbnailRenderPlan, VisualTreatmentPlan
@@ -152,40 +152,47 @@ class ThumbnailOrchestrator:
                     )
 
                     # The first executable slice is intentionally source-frame
-                    # only. Do not pretend unsupported operations are executed.
-                    if asset_plan.strategy.value != "source_frame":
+                    # only. Unsupported strategies remain candidates for later
+                    # builders rather than being silently faked here.
+                    if asset_plan.strategy is not VisualStrategy.SOURCE_FRAME:
                         continue
 
-                    selected = SelectedFrame(
-                        perception=candidate.perception,
-                        score=FrameCandidateScorer().score(candidate.perception),
-                    )
+                    try:
+                        selected = SelectedFrame(
+                            perception=candidate.perception,
+                            score=FrameCandidateScorer().score(candidate.perception),
+                        )
 
-                    composition = self.composition_planner.plan(
-                        selected_frame=selected,
-                        asset=candidate.asset,
-                        target=target,
-                        source_aspect_ratio=source_aspect_ratios[candidate.asset.asset_id],
-                    )
+                        composition = self.composition_planner.plan(
+                            selected_frame=selected,
+                            asset=candidate.asset,
+                            target=target,
+                            source_aspect_ratio=source_aspect_ratios[candidate.asset.asset_id],
+                        )
 
-                    typography = self.typography_planner.plan(
-                        copy=concept.copy.blocks,
-                        composition=composition,
-                        target=target,
-                    )
+                        typography = self.typography_planner.plan(
+                            copy=concept.copy.blocks,
+                            composition=composition,
+                            target=target,
+                        )
 
-                    render_plan = ThumbnailRenderPlan(
-                        canvas_width=target.size.width,
-                        canvas_height=target.size.height,
-                        composition=composition,
-                        typography=typography,
-                        visual_treatment=VisualTreatmentPlan(
-                            contrast=1.06,
-                            saturation=1.06,
-                            sharpness=1.04,
-                            vignette=0.08,
-                        ),
-                    )
+                        render_plan = ThumbnailRenderPlan(
+                            canvas_width=target.size.width,
+                            canvas_height=target.size.height,
+                            composition=composition,
+                            typography=typography,
+                            visual_treatment=VisualTreatmentPlan(
+                                contrast=1.06,
+                                saturation=1.06,
+                                sharpness=1.04,
+                                vignette=0.08,
+                            ),
+                        )
+                    except (TypeError, ValueError, FileNotFoundError):
+                        # One bad candidate must not destroy the remaining search
+                        # space. The evaluator/orchestrator can only choose from
+                        # plans that successfully materialize.
+                        continue
 
                     layout_candidates.append(
                         LayoutCandidate(
