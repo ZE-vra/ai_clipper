@@ -60,9 +60,13 @@ def test_text_band_avoids_primary_subject_when_alternate_band_is_available() -> 
 
 
 def test_subject_can_be_staged_opposite_the_text() -> None:
+    # A genuinely right-staged composition requires the source subject
+    # to have enough room to its left for a safe opposing text field. A
+    # centered subject cannot satisfy that geometry in a 16:9 -> 9:16 crop
+    # without clipping the subject, so this fixture models the viable case.
     subject = _subject(
-        BoundingBox(0.36, 0.12, 0.54, 0.70),
-        Point(0.45, 0.41),
+        BoundingBox(0.55, 0.12, 0.73, 0.70),
+        Point(0.64, 0.41),
     )
     composition = V11CompositionPlanner(
         __import__(
