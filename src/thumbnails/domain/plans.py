@@ -145,10 +145,8 @@ class TypographyPlan:
     ]
 
     def __post_init__(self) -> None:
-        if not self.blocks:
-            raise ValueError(
-                "blocks must contain at least one item."
-            )
+        # Empty typography is valid for visual-only thumbnail concepts.
+        pass
 
 
 @dataclass(frozen=True)
