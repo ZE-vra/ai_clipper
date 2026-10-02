@@ -40,6 +40,7 @@ class SemanticFrameSelector:
         self.scorer = scorer or FrameCandidateScorer()
         self.semantic_weight = semantic_weight
         self.preferred_edge_clearance = preferred_edge_clearance
+        self.minimum_text_space = minimum_text_space
 
     def select(
         self,
