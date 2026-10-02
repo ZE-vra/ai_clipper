@@ -55,6 +55,8 @@ class ThumbnailEvaluation:
     hard_failures: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     rationale: str = ""
+    # Legacy failure-reason field retained during migration.
+    reason: str = ""
     # Legacy aggregate score retained only during migration.
     score: float | None = None
     soft_failures: tuple[str, ...] = ()
