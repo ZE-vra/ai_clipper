@@ -25,7 +25,7 @@ class TextMeasurer(Protocol):
 
 
 class HeuristicTextMeasurer:
-    """Deterministic V1 metrics behind a replaceable font-measurement boundary."""
+    """Deterministic fallback metrics behind a replaceable measurement boundary."""
 
     def measure(self, text: str, *, font_name: str, font_size: int, weight: str) -> TextMeasurement:
         del font_name
@@ -39,6 +39,44 @@ class HeuristicTextMeasurer:
             default=0.0,
         )
         return TextMeasurement(width=width, height=len(lines) * font_size)
+
+
+class PillowTextMeasurer:
+    """Measure using the same font engine used by the Pillow renderer."""
+
+    def __init__(self, fallback: TextMeasurer | None = None) -> None:
+        self.fallback = fallback or HeuristicTextMeasurer()
+
+    def measure(self, text: str, *, font_name: str, font_size: int, weight: str) -> TextMeasurement:
+        from pathlib import Path
+        from PIL import ImageFont
+
+        candidates: list[Path] = []
+        if font_name.lower() == "arial":
+            if weight.lower() == "bold":
+                candidates.extend((
+                    Path("C:/Windows/Fonts/arialbd.ttf"),
+                    Path("C:/Windows/Fonts/Arial_Bold.ttf"),
+                ))
+            else:
+                candidates.append(Path("C:/Windows/Fonts/arial.ttf"))
+        candidates.append(Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
+
+        for candidate in candidates:
+            if candidate.exists():
+                font = ImageFont.truetype(str(candidate), font_size)
+                lines = text.splitlines() or [""]
+                boxes = [font.getbbox(line) for line in lines]
+                width = max((box[2] - box[0] for box in boxes), default=0.0)
+                height = max((box[3] - box[1] for box in boxes), default=0.0)
+                return TextMeasurement(width=width, height=height * len(lines))
+
+        return self.fallback.measure(
+            text,
+            font_name=font_name,
+            font_size=font_size,
+            weight=weight,
+        )
 
 
 @dataclass(frozen=True)
@@ -103,7 +141,7 @@ class TypographyPlanner:
     def __init__(self, config: TypographyPlannerConfig | None = None,
                  measurer: TextMeasurer | None = None) -> None:
         self.config = config or TypographyPlannerConfig()
-        self.measurer = measurer or HeuristicTextMeasurer()
+        self.measurer = measurer or PillowTextMeasurer()
 
     def plan(self, *, copy: Sequence[CopyBlock], composition: CompositionPlan,
              target: ThumbnailTarget) -> TypographyPlan:
