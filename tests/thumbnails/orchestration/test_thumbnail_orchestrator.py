@@ -134,3 +134,67 @@ def test_v2_orchestrator_renders_real_first_vertical_slice(tmp_path: Path) -> No
 
     with Image.open(output) as image:
         assert image.size == (1280, 720)
+
+
+class MultiFrameDiscovery:
+    def __init__(self, candidates: tuple[FrameCandidate, ...]) -> None:
+        self.candidates = candidates
+
+    def discover(
+        self,
+        *,
+        video_path: Path,
+        output_dir: Path,
+    ) -> tuple[FrameCandidate, ...]:
+        return self.candidates
+
+
+def test_v2_orchestrator_skips_broken_candidate_and_uses_next_valid_one(
+    tmp_path: Path,
+) -> None:
+    source_video = tmp_path / "source.mp4"
+    source_video.write_bytes(b"placeholder")
+
+    broken = _candidate(tmp_path / "missing.jpg")
+    valid_frame = tmp_path / "valid.jpg"
+    Image.new("RGB", (1920, 1080), (30, 80, 120)).save(valid_frame)
+    valid = _candidate(valid_frame)
+
+    orchestrator = ThumbnailOrchestrator(
+        frame_discovery=MultiFrameDiscovery((broken, valid)),
+        creative_director=RuleBasedCreativeDirector(),
+        asset_matcher=AssetMatcher(),
+        strategy_planner=StrategyPlanner(),
+        composition_planner=CompositionPlanner(),
+        typography_planner=TypographyPlanner(),
+        layout_negotiator=LayoutNegotiator(),
+        max_concepts=1,
+        max_matches_per_concept=2,
+    )
+
+    output = tmp_path / "thumbnail.jpg"
+
+    result = orchestrator.generate(
+        source_video_path=source_video,
+        output_path=output,
+        candidates_dir=tmp_path / "candidates",
+        brief=ThumbnailBrief(
+            core_hook="$2M CARPET ON A PLANE?!",
+            subject="private jet",
+            promise="A $2 million carpet is revealed.",
+            curiosity_angle="Why is the carpet worth $2 million?",
+            emotional_direction="surprise",
+            important_objects=("carpet",),
+            visual_evidence=("luxury jet interior",),
+        ),
+        understanding=ContentUnderstanding(
+            entities=(),
+            events=(),
+            confidence=1.0,
+        ),
+        target=_target(),
+    )
+
+    assert result.status.value == "success"
+    assert result.output_path == str(output)
+    assert output.is_file()
