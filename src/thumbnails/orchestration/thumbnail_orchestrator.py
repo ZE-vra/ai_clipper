@@ -120,10 +120,6 @@ class ThumbnailOrchestrator:
                 )
 
             assets = {candidate.asset.asset_id: candidate.asset for candidate in candidates}
-            source_aspect_ratios = {
-                candidate.asset.asset_id: self._aspect_ratio(candidate.asset.path)
-                for candidate in candidates
-            }
 
             layout_candidates: list[LayoutCandidate] = []
 
@@ -163,11 +159,15 @@ class ThumbnailOrchestrator:
                             score=FrameCandidateScorer().score(candidate.perception),
                         )
 
+                        source_aspect_ratio = self._aspect_ratio(
+                            candidate.asset.path
+                        )
+
                         composition = self.composition_planner.plan(
                             selected_frame=selected,
                             asset=candidate.asset,
                             target=target,
-                            source_aspect_ratio=source_aspect_ratios[candidate.asset.asset_id],
+                            source_aspect_ratio=source_aspect_ratio,
                         )
 
                         typography = self.typography_planner.plan(
