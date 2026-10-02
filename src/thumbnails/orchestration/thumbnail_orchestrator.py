@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Protocol
 
 from src.thumbnails.domain.concepts import VisualStrategy
+from src.thumbnails.evaluation.deterministic import DeterministicThumbnailEvaluator
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
 from src.thumbnails.domain.plans import ThumbnailRenderPlan, VisualTreatmentPlan
@@ -59,6 +60,7 @@ class ThumbnailOrchestrator:
         typography_planner: TypographyPlanner | None = None,
         layout_negotiator: LayoutNegotiator | None = None,
         renderer: ThumbnailRenderer | None = None,
+        evaluator: DeterministicThumbnailEvaluator | None = None,
         max_concepts: int = 3,
         max_matches_per_concept: int = 2,
     ) -> None:
@@ -75,6 +77,7 @@ class ThumbnailOrchestrator:
         self.typography_planner = typography_planner or TypographyPlanner()
         self.layout_negotiator = layout_negotiator or LayoutNegotiator()
         self.renderer = renderer
+        self.evaluator = evaluator or DeterministicThumbnailEvaluator()
         self.max_concepts = max_concepts
         self.max_matches_per_concept = max_matches_per_concept
 
@@ -223,6 +226,20 @@ class ThumbnailOrchestrator:
                 plan=selected_plan,
                 output_path=output,
             )
+
+            evaluation = self.evaluator.evaluate(
+                output_path=output,
+                plan=selected_plan,
+                target=target,
+            )
+            if not evaluation.accepted:
+                return ThumbnailResult(
+                    status=ThumbnailResultStatus.NO_ACCEPTABLE_RESULT,
+                    failure_reason=(
+                        "deterministic thumbnail evaluation failed: "
+                        + "; ".join(evaluation.hard_failures)
+                    ),
+                )
 
             return ThumbnailResult(
                 status=ThumbnailResultStatus.SUCCESS,
