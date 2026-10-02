@@ -374,6 +374,17 @@ class V11CompositionPlanner:
                 BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
             )
 
+        # When the subject is deliberately staged to one side, provide an
+        # opposing text field that also respects the requested top/bottom band.
+        if self.config.preferred_subject_side == "right" and left_width >= 0.35:
+            candidates.append(
+                BoundingBox(margin, margin, exclusion.left - margin, 0.45)
+            )
+        elif self.config.preferred_subject_side == "left" and right_width >= 0.35:
+            candidates.append(
+                BoundingBox(exclusion.right + margin, margin, 1.0 - margin, 0.45)
+            )
+
         safe_candidates: list[BoundingBox] = []
         for candidate in candidates:
             intersections = [
