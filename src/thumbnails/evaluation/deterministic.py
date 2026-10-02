@@ -45,9 +45,9 @@ class DeterministicThumbnailEvaluator:
             return self._result(failures, 0.0, 0.0, 0.0)
 
         composition_score = 1.0 if plan.composition.visual_placements else 0.0
-        readability_score = (
-            1.0 if plan.typography.blocks else 0.0
-        )
+        # Copy is optional: a visual-only thumbnail is a valid creative
+        # strategy. Readability is evaluated later when typography exists.
+        readability_score = 1.0
 
         technical_score = 1.0 if not failures else 0.0
         accepted = not failures and composition_score > 0.0 and readability_score > 0.0
