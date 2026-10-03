@@ -131,3 +131,21 @@ def test_invalid_typography_config_is_rejected() -> None:
             minimum_font_size=100,
             base_font_size=80,
         )
+
+
+def test_caption_uses_high_contrast_white_and_accent_color() -> None:
+    plan = TypographyPlanner().plan(
+        copy=(
+            CopyBlock("INSIDE THE JET", CopyRole.HOOK),
+            CopyBlock("$500K", CopyRole.PAYOFF),
+            CopyBlock("PRIVATE JET", CopyRole.ACCENT),
+        ),
+        composition=_composition(BoundingBox(0.0, 0.0, 0.50, 1.0)),
+        target=_target(),
+    )
+
+    assert plan.blocks[0].color == "#FFFFFF"
+    assert plan.blocks[0].stroke_color == "#000000"
+    assert plan.blocks[0].stroke_width == 6
+    assert plan.blocks[1].color == "#FFD400"
+    assert plan.blocks[2].color == "#FFD400"
