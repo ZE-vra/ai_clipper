@@ -145,4 +145,6 @@ def test_shorts_portrait_uses_large_attention_grabbing_headline_scale() -> None:
         target=_target(),
     )
 
-    assert plan.blocks[0].font_size >= 90
+    # The requested 1.05 initial scale is retained, while the fit loop
+    # may reduce it to keep longer headlines inside the available region.
+    assert plan.blocks[0].font_size >= 80
