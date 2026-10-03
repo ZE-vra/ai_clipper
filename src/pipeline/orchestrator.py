@@ -1002,6 +1002,11 @@ class PipelineOrchestrator:
 
                 with Image.open(output_path) as image:
                     image.verify()
+                    if image.size != (1080, 1920):
+                        raise ValueError(
+                            "thumbnail checkpoint has incorrect dimensions "
+                            f"{image.size}; expected (1080, 1920) for Shorts."
+                        )
             except (OSError, ValueError):
                 print(
                     f"Existing thumbnail for clip {decision.clip_id} "
