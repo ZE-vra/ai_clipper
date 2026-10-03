@@ -22,6 +22,7 @@ class FakeThumbnailStage:
         return ThumbnailResult(
             status=ThumbnailResultStatus.SUCCESS,
             output_path=str(output_path),
+            selected_attempt_id="attempt-1",
         )
 
 
