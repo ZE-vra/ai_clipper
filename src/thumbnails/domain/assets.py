@@ -10,6 +10,7 @@ from src.thumbnails.perception.frame_perception import FramePerception
 class AssetProvenanceKind(str, Enum):
     SOURCE_FRAME = "source_frame"
     ENHANCED_FRAME = "enhanced_frame"
+    SUBJECT_CUTOUT = "subject_cutout"
     GENERATED = "generated"
     GENERATIVE_EXTENSION = "generative_extension"
     HYBRID = "hybrid"
