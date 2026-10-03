@@ -363,27 +363,62 @@ class V11CompositionPlanner:
         ]
 
         left_width = exclusion.left - margin
-        if left_width >= 0.35:
+        right_width = (1.0 - margin) - exclusion.right
+
+        # Preserve a side field even when it is narrower than the general
+        # full-height layout threshold. A constrained but subject-free field
+        # is preferable to silently falling back to a full-width band.
+        minimum_side_field_width = 0.20
+        if (
+            left_width >= minimum_side_field_width
+            and self.config.preferred_subject_side != "right"
+        ):
             candidates.append(
                 BoundingBox(margin, 0.10, exclusion.left - margin, 0.78)
             )
 
-        right_width = (1.0 - margin) - exclusion.right
-        if right_width >= 0.35:
+        if (
+            right_width >= minimum_side_field_width
+            and self.config.preferred_subject_side != "left"
+        ):
             candidates.append(
                 BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
             )
 
         # When the subject is deliberately staged to one side, provide an
-        # opposing text field that also respects the requested top/bottom band.
-        if self.config.preferred_subject_side == "right" and left_width >= 0.35:
-            candidates.append(
-                BoundingBox(margin, margin, exclusion.left - margin, 0.45)
-            )
-        elif self.config.preferred_subject_side == "left" and right_width >= 0.35:
-            candidates.append(
-                BoundingBox(exclusion.right + margin, margin, 1.0 - margin, 0.45)
-            )
+        # opposing text field in the requested top/bottom band. Do not also
+        # offer a full-height version of that same field: the band preference
+        # should be honored when the opposing field is available.
+        if (
+            self.config.preferred_subject_side == "right"
+            and left_width >= minimum_side_field_width
+        ):
+            if self.config.preferred_text_side == "top":
+                candidates.append(
+                    BoundingBox(margin, margin, exclusion.left - margin, 0.45)
+                )
+            else:
+                candidates.append(
+                    BoundingBox(
+                        margin, 0.55, exclusion.left - margin, 1.0 - margin
+                    )
+                )
+        elif (
+            self.config.preferred_subject_side == "left"
+            and right_width >= minimum_side_field_width
+        ):
+            if self.config.preferred_text_side == "top":
+                candidates.append(
+                    BoundingBox(
+                        exclusion.right + margin, margin, 1.0 - margin, 0.45
+                    )
+                )
+            else:
+                candidates.append(
+                    BoundingBox(
+                        exclusion.right + margin, 0.55, 1.0 - margin, 1.0 - margin
+                    )
+                )
 
         safe_candidates: list[BoundingBox] = []
         for candidate in candidates:
