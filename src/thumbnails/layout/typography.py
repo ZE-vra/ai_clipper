@@ -148,7 +148,16 @@ class TypographyPlanner:
         blocks = tuple(copy)
         if not blocks:
             raise ValueError("copy must contain at least one block.")
-        region = self._usable_region(composition, target)
+        is_portrait_shorts = (
+            target.size.height > target.size.width
+            and target.size.width / target.size.height <= 0.75
+        )
+        if is_portrait_shorts:
+            # Shorts headline belongs in a dedicated top band, not beside the
+            # subject in whichever negative-space region frame analysis found.
+            region = BoundingBox(0.05, 0.04, 0.95, 0.30)
+        else:
+            region = self._usable_region(composition, target)
         region = self._avoid_ui(region, target)
         if region.width < self.config.minimum_region_width or region.height < self.config.minimum_region_height:
             raise ValueError("No usable typography region remains.")
@@ -274,7 +283,7 @@ class TypographyPlanner:
                                 font_size=size,
                                 weight=self.config.weight,
                                 alignment=alignment,
-                                color=self.config.color,
+                                color="#FFD700" if is_portrait_shorts else self.config.color,
                                 position=Point(
                                     self._anchor_x(bounds, alignment),
                                     (top + bottom) / 2,
