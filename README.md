@@ -99,4 +99,14 @@ python -m src.thumbnails.cli path/to/input.mp4 --transcript path/to/transcript.t
 
 Set `GEMINI_API_KEY` in the environment. This mode requires the Google GenAI SDK. The generated understanding is grounded in transcript text; it cannot establish visual facts that the transcript does not contain. Use `--input` when you already have reviewed, structured inputs. The two input modes are mutually exclusive.
 
+### Transcribe the video automatically
+
+For a fully local transcription step, let Whisper read the source video directly and pass its transcript to Gemini:
+
+```powershell
+python -m src.thumbnails.cli path/to/input.mp4 --auto-transcribe --output output/thumbnail.jpg
+```
+
+This requires OpenAI Whisper, FFmpeg, and `GEMINI_API_KEY`. The default Whisper model is `base`; choose another installed/downloadable Whisper model with `--whisper-model small`, and optionally set `--language en`. Whisper may download its model weights on first use. The CLI does not download the optional YOLO subject-segmentation checkpoint.
+
 This entry point is experimental and does not replace the existing clipper CLI.
