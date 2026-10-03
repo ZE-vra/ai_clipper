@@ -127,7 +127,7 @@ class SemanticFrameSelector:
 
         side_score = min(
             1.0,
-            side_space / self.minimum_text_space,
+            side_space / (self.minimum_text_space * 1.5),
         )
         vertical_score = min(
             1.0,
