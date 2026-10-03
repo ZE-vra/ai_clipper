@@ -63,8 +63,7 @@ class GeminiContentUnderstandingProvider:
 
         prompt = f"""
 You are preparing inputs for a video thumbnail creative system.
-Use only information supported by this transcript. Do not invent visual
-details; put only transcript-grounded facts in entities, events, and claims.
+Use only information supported by this transcript. Do not invent visual details; put only transcript-grounded facts in entities, events, and claims.
 Create a concise, truthful thumbnail brief with a compelling hook, without
 misrepresenting what the video says.
 
