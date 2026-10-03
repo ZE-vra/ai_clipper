@@ -449,33 +449,42 @@ PACKAGING OBJECTIVES:
 1. ACCURACY
 Base every claim on the supplied clip context.
 
-2. CURIOSITY
-Make the viewer want to watch without using dishonest clickbait.
+2. CURIOSITY-FIRST, HIGH-CLICK-THROUGH PACKAGING
+Create an open loop that makes the viewer ask a specific question.
+Use the strongest truthful mechanism supported by the clip:
+- a surprising concrete detail
+- an unexpected contrast or contradiction
+- a consequential choice or mistake
+- a reveal whose result is not given away
+- an unusual reaction, obstacle, or unanswered question
+- concrete stakes or a number, when present
 
-3. SPECIFICITY
-Prefer concrete details from the clip over generic hype.
+Make the viewer wonder what happens next. Do not invent stakes, numbers,
+conflict, reactions, or outcomes. The curiosity must come from the real clip.
 
-Avoid generic phrases such as:
-- "You won't believe this"
-- "This changed everything"
-- "Wait until you see this"
-- "The ending is insane"
-
-unless the actual content specifically justifies them.
+3. SPECIFICITY AND ANTI-GENERIC RULE
+Use concrete nouns, actions, and details from this clip. Avoid vague
+phrases such as "You won't believe this", "This changed everything",
+"Wait until you see this", "The ending is insane", "Unbelievable moment",
+or "You need to see this" unless the actual detail makes them specific.
+Avoid generic summaries that merely name the topic.
 
 4. HUMAN LANGUAGE
 Write like an experienced short-form content strategist.
 Do not sound corporate, robotic, or overly polished.
 
-5. DO NOT OVER-SPOIL
-Where appropriate, create curiosity without immediately
-revealing the complete payoff.
+5. CURIOSITY GAP WITHOUT MISLEADING
+Where appropriate, reveal the setup or surprising detail but withhold the
+answer/payoff. Make the stakes understandable while leaving one compelling
+question unanswered. Never hide the topic so much that the copy becomes vague.
 
 6. TITLE
-Create one concise, specific title.
+Write a natural, specific title with a strong first phrase and a clear reason
+to keep watching. Avoid keyword stuffing and empty superlatives.
 
 7. HOOK
-Create a short hook suitable for on-screen text or an opening line.
+Write a sharp opening hook. Prefer a specific claim, tension, question, or
+unexpected detail over a generic introduction.
 
 8. CAPTION
 Write a natural social-media caption that adds context or curiosity.
@@ -484,9 +493,13 @@ Write a natural social-media caption that adds context or curiosity.
 Briefly explain what happens in the clip.
 
 10. THUMBNAIL TEXT
-Create short thumbnail text.
-
-Prefer 2-6 words.
+This is the thumbnail's main click trigger, not a summary or topic label.
+Write 2-5 punchy words, ideally 28 characters maximum, readable on a phone.
+Use the most intriguing specific detail or unanswered question in the clip.
+Create one clear curiosity gap and do not merely repeat the title.
+Avoid generic labels like "INSANE STORY", "MUST WATCH", "UNBELIEVABLE",
+or "WAIT FOR IT". Use numbers only when supported by the clip. A truthful,
+provocative question or partial reveal is often more compelling.
 
 11. CONTENT ANGLE
 Identify the strongest genuine angle of the clip.
