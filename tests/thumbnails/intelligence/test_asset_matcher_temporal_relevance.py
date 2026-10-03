@@ -2,7 +2,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from src.thumbnails.domain.assets import AssetProvenance, AssetProvenanceKind, FrameCandidate, VisualAsset
-from src.thumbnails.domain.concepts import ThumbnailConcept, VisualStrategy
+from src.thumbnails.domain.concepts import (
+    CopyBlock,
+    CopyConcept,
+    CopyRole,
+    ThumbnailConcept,
+    VisualStrategy,
+)
 from src.thumbnails.intelligence.asset_matcher import AssetMatcher
 
 
@@ -25,11 +31,19 @@ def _candidate(asset_id: str, timestamp: float, score: float = 0.8) -> FrameCand
     )
 
 
+def _copy() -> CopyConcept:
+    return CopyConcept(
+        concept_id="event-reveal-copy",
+        blocks=(CopyBlock(text="What happens next?", role=CopyRole.HOOK),),
+    )
+
+
 def _event_concept() -> ThumbnailConcept:
     return ThumbnailConcept(
         concept_id="event-reveal",
         title="The prize is revealed",
         visual_idea="Show the moment the prize appears",
+        copy=_copy(),
         curiosity_mechanism="reveal",
         emotional_direction="surprise",
         candidate_strategies=(VisualStrategy.SOURCE_FRAME,),
@@ -70,6 +84,7 @@ def test_asset_matcher_keeps_quality_order_when_no_event_window_exists() -> None
         concept_id="general",
         title="The prize is revealed",
         visual_idea="Show a relevant moment",
+        copy=_copy(),
         curiosity_mechanism="reveal",
         emotional_direction="surprise",
         candidate_strategies=(VisualStrategy.SOURCE_FRAME,),
