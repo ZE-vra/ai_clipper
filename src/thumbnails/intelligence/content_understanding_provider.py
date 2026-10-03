@@ -128,7 +128,12 @@ class GeminiContentUnderstandingProvider:
 You are preparing inputs for a video thumbnail creative system.
 Use only information supported by this transcript. Do not invent visual details; put only transcript-grounded facts in entities, events, and claims.
 Create a concise, truthful thumbnail brief with a compelling hook, without
-misrepresenting what the video says.
+misrepresenting what the video says. Thumbnail text must fit a 16:9 YouTube
+thumbnail: write both "core_hook" and "promise" as short on-image copy, each
+2–5 words and at most 28 characters where possible. Use punchy fragments,
+not full sentences or explanations. Preserve the central truthful meaning;
+prefer a shorter phrase over adding context. Do not put the curiosity angle,
+background explanation, or multiple ideas into the on-image copy.
 
 Return one JSON object with this exact structure:
 {{

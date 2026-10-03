@@ -62,6 +62,9 @@ def test_provider_builds_validated_v2_inputs_from_transcript():
     assert understanding.entities[0].evidence == ("The speaker describes the experiment.",)
     assert understanding.events[0].entity_ids == ("experiment",)
     assert "Do not invent visual details" in captured[0]
+    assert "2–5 words" in captured[0]
+    assert "at most 28 characters" in captured[0]
+    assert "not full sentences or explanations" in captured[0]
     assert "The speaker describes an experiment." in captured[0]
 
 
