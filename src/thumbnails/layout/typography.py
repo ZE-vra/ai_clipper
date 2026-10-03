@@ -185,12 +185,12 @@ class TypographyPlanner:
             for block in blocks
         )
 
-        # Shorts are viewed in a narrow, vertically scrolling feed. Keep the
-        # first-pass type scale deliberately restrained so the headline does
-        # not overwhelm the subject or turn into a wall of text. The fitter
-        # may still reduce it further when the available region requires it.
+        # Shorts thumbnails are viewed small in a fast-scrolling feed, so the
+        # headline must read immediately. Start portrait typography at a bold,
+        # near-maximum scale; the deterministic fitter still reduces it only
+        # when the actual text region requires it.
         is_portrait_shorts = canvas_height > canvas_width and canvas_width / canvas_height <= 0.75
-        scale = 0.78 if is_portrait_shorts else 1.0
+        scale = 1.05 if is_portrait_shorts else 1.0
 
         while scale >= minimum_scale - 0.0001:
             drafts: list[tuple[CopyBlock, int, str, float]] = []
