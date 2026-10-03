@@ -77,7 +77,7 @@ Thumbnail V2 is available through a separate CLI entry point so it does not chan
 python -m src.thumbnails.cli path/to/input.mp4 --input examples/thumbnail_v2_request.json --output output/thumbnail.jpg
 ```
 
-FFmpeg and FFprobe must be installed and available on `PATH`. Use `--ffmpeg` and `--ffprobe` to specify alternate executable paths. The output directory must already exist.
+FFmpeg and FFprobe must be installed and available on `PATH`. Use `--ffmpeg` and `--ffprobe` to specify alternate executable paths. The output and working directories are created automatically when needed.
 
 To enable person segmentation and subject-cutout composition, pass a **local** Ultralytics segmentation checkpoint:
 
