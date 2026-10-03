@@ -43,42 +43,40 @@ class AssetMatcher:
                 + 0.15 * min(1.0, subjects / 3.0)
             )
 
-            # Extract candidate identifiers from subjects safely
             candidate_identifiers = set()
-            if hasattr(perception, "subjects") and hasattr(perception.subjects, "subjects"):
-                for subject in perception.subjects.subjects:
-                    for attr in ("label", "name", "entity_id", "subject_id", "kind"):
-                        val = getattr(subject, attr, None)
-                        if isinstance(val, str) and val.strip():
-                            candidate_identifiers.add(val.lower())
+            for subject in perception.subjects.subjects:
+                for attr in ("label", "name", "entity_id", "subject_id", "kind"):
+                    val = getattr(subject, attr, None)
+                    if isinstance(val, str) and val.strip():
+                        candidate_identifiers.add(val.lower())
 
-            # Calculate evidence matching score
             evidence_score = 0.0
             total_evidence_categories = 0
 
             if concept.required_visual_evidence:
                 total_evidence_categories += 1
                 req_set = {item.lower() for item in concept.required_visual_evidence}
-                req_matches = candidate_identifiers.intersection(req_set)
-                evidence_score += len(req_matches) / len(req_set)
+                evidence_score += len(candidate_identifiers.intersection(req_set)) / len(req_set)
 
             if concept.preferred_entities:
                 total_evidence_categories += 1
                 pref_ent_set = {item.lower() for item in concept.preferred_entities}
-                pref_ent_matches = candidate_identifiers.intersection(pref_ent_set)
-                evidence_score += len(pref_ent_matches) / len(pref_ent_set)
+                evidence_score += len(candidate_identifiers.intersection(pref_ent_set)) / len(pref_ent_set)
 
             if concept.preferred_objects:
                 total_evidence_categories += 1
                 pref_obj_set = {item.lower() for item in concept.preferred_objects}
-                pref_obj_matches = candidate_identifiers.intersection(pref_obj_set)
-                evidence_score += len(pref_obj_matches) / len(pref_obj_set)
+                evidence_score += len(candidate_identifiers.intersection(pref_obj_set)) / len(pref_obj_set)
 
-            if total_evidence_categories > 0:
-                evidence_factor = evidence_score / total_evidence_categories
+            evidence_factor = (
+                evidence_score / total_evidence_categories
+                if total_evidence_categories
+                else 0.0
+            )
+
+            if total_evidence_categories:
                 score = 0.70 * base_score + 0.30 * evidence_factor
             else:
-                evidence_factor = 0.0
                 score = base_score
 
             reasons = [
@@ -86,14 +84,28 @@ class AssetMatcher:
                 f"crop={crop:.2f}",
                 f"focal={focal:.2f}",
             ]
-            if total_evidence_categories > 0:
+            if total_evidence_categories:
                 reasons.append(f"evidence_match={evidence_factor:.2f}")
 
-            limitations: list[str] = []
+            # When a concept describes a specific event, prefer frames from
+            # that event instead of choosing a visually polished but unrelated
+            # moment. The score decays smoothly outside the event window so a
+            # nearby reaction frame can still compete.
+            if concept.preferred_time_range is not None:
+                start, end = concept.preferred_time_range
+                timestamp = candidate.timestamp
+                if start <= timestamp <= end:
+                    temporal_score = 1.0
+                else:
+                    distance = start - timestamp if timestamp < start else timestamp - end
+                    event_duration = max(end - start, 1.0)
+                    temporal_score = max(0.0, 1.0 - distance / event_duration)
+                score = 0.60 * score + 0.40 * temporal_score
+                reasons.append(f"event_time_match={temporal_score:.2f}")
 
+            limitations: list[str] = []
             if not perception.subjects.subjects:
                 limitations.append("no detected person subject")
-
             if VisualStrategy.SOURCE_FRAME not in concept.candidate_strategies:
                 limitations.append("source frame is not a preferred strategy")
 
@@ -108,9 +120,5 @@ class AssetMatcher:
             )
 
         return tuple(
-            sorted(
-                matches,
-                key=lambda match: match.suitability_score,
-                reverse=True,
-            )
+            sorted(matches, key=lambda match: match.suitability_score, reverse=True)
         )
