@@ -6,6 +6,7 @@ from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
 from src.thumbnails.intelligence.content_understanding_provider import (
     GeminiContentUnderstandingProvider,
+    _call_with_transient_retries,
 )
 
 
@@ -78,3 +79,48 @@ def test_provider_rejects_malformed_response():
 
     with pytest.raises(ValueError, match="must contain 'brief' and 'understanding'"):
         provider.understand("A non-empty transcript.")
+
+
+def test_transient_gemini_503_retries_then_succeeds():
+    outcomes = iter([
+        RuntimeError("503 UNAVAILABLE: high demand"),
+        RuntimeError("503 UNAVAILABLE: high demand"),
+        "ok",
+    ])
+    waits = []
+
+    result = _call_with_transient_retries(
+        lambda: (lambda value: (_ for _ in ()).throw(value) if isinstance(value, Exception) else value)(next(outcomes)),
+        sleep=waits.append,
+    )
+
+    assert result == "ok"
+    assert waits == [2, 4]
+
+
+def test_transient_gemini_errors_stop_after_three_attempts():
+    attempts = []
+    waits = []
+
+    def request():
+        attempts.append(1)
+        raise RuntimeError("503 UNAVAILABLE: high demand")
+
+    with pytest.raises(RuntimeError, match="failed after 3 attempts"):
+        _call_with_transient_retries(request, sleep=waits.append)
+
+    assert len(attempts) == 3
+    assert waits == [2, 4]
+
+
+def test_gemini_quota_error_is_not_retried():
+    attempts = []
+
+    def request():
+        attempts.append(1)
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+    with pytest.raises(RuntimeError, match="quota/rate limit reached"):
+        _call_with_transient_retries(request, sleep=lambda _: pytest.fail("must not sleep"))
+
+    assert len(attempts) == 1
