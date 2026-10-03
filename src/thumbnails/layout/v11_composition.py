@@ -395,7 +395,7 @@ class V11CompositionPlanner:
         ):
             if self.config.preferred_text_side == "top":
                 candidates.append(
-                    BoundingBox(margin, margin, exclusion.left - margin, 0.45)
+                    BoundingBox(margin, margin, exclusion.left - margin, 0.44)
                 )
             else:
                 candidates.append(
@@ -410,7 +410,7 @@ class V11CompositionPlanner:
             if self.config.preferred_text_side == "top":
                 candidates.append(
                     BoundingBox(
-                        exclusion.right + margin, margin, 1.0 - margin, 0.45
+                        exclusion.right + margin, margin, 1.0 - margin, 0.44
                     )
                 )
             else:
