@@ -131,3 +131,18 @@ def test_invalid_typography_config_is_rejected() -> None:
             minimum_font_size=100,
             base_font_size=80,
         )
+
+
+def test_shorts_portrait_uses_more_restrained_headline_scale() -> None:
+    config = TypographyPlannerConfig(
+        base_font_size=100,
+        maximum_font_size=100,
+        minimum_font_size=42,
+    )
+    plan = TypographyPlanner(config=config).plan(
+        copy=(CopyBlock("FREE DISNEY TRIP", CopyRole.HOOK),),
+        composition=_composition(BoundingBox(0.0, 0.0, 0.60, 0.90)),
+        target=_target(),
+    )
+
+    assert plan.blocks[0].font_size <= 80
