@@ -133,7 +133,7 @@ def test_invalid_typography_config_is_rejected() -> None:
         )
 
 
-def test_shorts_portrait_uses_more_restrained_headline_scale() -> None:
+def test_shorts_portrait_uses_large_attention_grabbing_headline_scale() -> None:
     config = TypographyPlannerConfig(
         base_font_size=100,
         maximum_font_size=100,
@@ -145,4 +145,4 @@ def test_shorts_portrait_uses_more_restrained_headline_scale() -> None:
         target=_target(),
     )
 
-    assert plan.blocks[0].font_size <= 80
+    assert plan.blocks[0].font_size >= 90
