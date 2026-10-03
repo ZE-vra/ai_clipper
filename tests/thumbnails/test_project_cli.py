@@ -94,3 +94,39 @@ def test_project_cli_fails_without_saved_source_section(tmp_path: Path, monkeypa
     result = project_cli.main(["existing-source.mp4", "--clip-id", "1"])
 
     assert result == 1
+
+
+
+def test_project_cli_accepts_saved_section_path_directly(tmp_path: Path, monkeypatch):
+    workspace = Config.workspace_from_project_id("youtube_test123")
+    workspace.root_dir = tmp_path / "youtube_test123"
+    workspace.source_dir = workspace.root_dir / "source"
+    workspace.packaging_dir = workspace.root_dir / "packaging"
+    workspace.source_dir.mkdir(parents=True)
+    workspace.packaging_dir.mkdir()
+    section = workspace.source_dir / "section_01.mp4"
+    section.write_bytes(b"existing source section")
+    save_clip_packaging(
+        ClipPackaging(
+            clip_id=1,
+            title="Title",
+            hook="Hook",
+            caption="Caption",
+            description="Description",
+            thumbnail_text="Short hook",
+            content_angle="A clear content angle",
+            hashtags=[],
+        ),
+        workspace,
+    )
+
+    # Keep the test isolated while exercising the real section-path resolution.
+    monkeypatch.setattr(Config, "PROJECTS_ROOT", tmp_path)
+    FakeThumbnailStage.calls = []
+    monkeypatch.setattr(project_cli, "ThumbnailV2Stage", FakeThumbnailStage)
+
+    result = project_cli.main([str(section), "--clip-id", "1", "--output", str(tmp_path / "preview.jpg")])
+
+    assert result == 0
+    assert len(FakeThumbnailStage.calls) == 1
+    assert FakeThumbnailStage.calls[0]["source_video_path"] == section
