@@ -87,10 +87,9 @@ class AssetMatcher:
             if total_evidence_categories:
                 reasons.append(f"evidence_match={evidence_factor:.2f}")
 
-            # When a concept describes a specific event, prefer frames from
-            # that event instead of choosing a visually polished but unrelated
-            # moment. The score decays smoothly outside the event window so a
-            # nearby reaction frame can still compete.
+            # Event relevance must outweigh modest quality differences: a
+            # polished frame just outside the described moment should not beat
+            # a good frame that actually depicts the moment.
             if concept.preferred_time_range is not None:
                 start, end = concept.preferred_time_range
                 timestamp = candidate.timestamp
@@ -100,7 +99,7 @@ class AssetMatcher:
                     distance = start - timestamp if timestamp < start else timestamp - end
                     event_duration = max(end - start, 1.0)
                     temporal_score = max(0.0, 1.0 - distance / event_duration)
-                score = 0.60 * score + 0.40 * temporal_score
+                score = 0.40 * score + 0.60 * temporal_score
                 reasons.append(f"event_time_match={temporal_score:.2f}")
 
             limitations: list[str] = []
