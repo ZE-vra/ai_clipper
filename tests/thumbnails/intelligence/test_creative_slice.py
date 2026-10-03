@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from src.thumbnails.domain.assets import FrameCandidate, VisualAsset, AssetProvenance, AssetProvenanceKind
 from src.thumbnails.domain.brief import ThumbnailBrief
-from src.thumbnails.domain.content import ContentEvent, ContentUnderstanding
+from src.thumbnails.domain.content import ContentEntity, ContentEvent, ContentUnderstanding
 from src.thumbnails.domain.concepts import VisualStrategy
 from src.thumbnails.intelligence.asset_matcher import AssetMatcher
 from src.thumbnails.intelligence.creative_director import RuleBasedCreativeDirector
@@ -72,6 +72,45 @@ def test_creative_director_does_not_select_a_frame() -> None:
     assert concepts
     assert all(concept.visual_strategy is None for concept in concepts)
     assert all(concept.candidate_strategies for concept in concepts)
+
+
+def test_creative_director_grounds_event_description_and_entities() -> None:
+    understanding = ContentUnderstanding(
+        entities=(
+            ContentEntity(entity_id="ent-carpet", label="Golden Carpet", kind="object", confidence=0.95),
+            ContentEntity(entity_id="ent-jet", label="Gulfstream G650", kind="vehicle", confidence=0.9),
+        ),
+        events=(
+            ContentEvent(
+                event_id="event-1",
+                start_time=10.0,
+                end_time=20.0,
+                description="The carpet price is revealed.",
+                entity_ids=("ent-carpet", "ent-jet", "missing-entity-id"),
+                importance=1.0,
+                confidence=0.9,
+            ),
+        ),
+        confidence=0.9,
+    )
+
+    concepts = RuleBasedCreativeDirector().create(
+        brief=_brief(),
+        understanding=understanding,
+        max_concepts=3,
+    )
+
+    # Find the event-reveal concept
+    event_concept = next(c for c in concepts if c.concept_id == "event-reveal")
+
+    # Verify event description grounding
+    assert "The carpet price is revealed." in event_concept.title
+    assert "The carpet price is revealed." in event_concept.visual_idea
+
+    # Verify entity label resolution and missing entity handling
+    assert "Golden Carpet" in event_concept.visual_idea
+    assert "Gulfstream G650" in event_concept.visual_idea
+    assert "missing-entity-id" not in event_concept.visual_idea
 
 
 def test_asset_matcher_ranks_candidates_without_discarding_the_pool() -> None:

@@ -116,14 +116,22 @@ class RuleBasedCreativeDirector:
                 understanding.events,
                 key=lambda candidate: candidate.importance * candidate.confidence,
             )
+
+            entity_map = {entity.entity_id: entity.label for entity in understanding.entities}
+            resolved_labels = [entity_map[eid] for eid in event.entity_ids if eid in entity_map]
+
+            visual_idea = (
+                f"Represent the event '{event.description}' with a frame that makes "
+                "the viewer want to know what happened immediately before or after it."
+            )
+            if resolved_labels:
+                visual_idea += f" Focus on key entities: {', '.join(resolved_labels)}."
+
             concepts.append(
                 ThumbnailConcept(
                     concept_id="event-reveal",
-                    title="The revealing moment",
-                    visual_idea=(
-                        "Represent the most important event with a frame that makes "
-                        "the viewer want to know what happened immediately before or after it."
-                    ),
+                    title=f"The revealing moment: {event.description}",
+                    visual_idea=visual_idea,
                     copy=CopyConcept(
                         concept_id="event-reveal-copy",
                         blocks=(
