@@ -34,7 +34,7 @@ class GeminiDirector(BaseAIDirector):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gemini-3.8-flash",
+        model: str = "gemini-3.5-flash",
         batch_size: int = 40,
         max_retries: int = 3,
     ):

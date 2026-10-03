@@ -28,7 +28,7 @@ class GeminiPackager(BasePackager):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gemini-3.8-flash",
+        model: str = "gemini-3.5-flash",
         fallback_model: str = "gemini-3.5-flash",
         max_retries: int = 2,
         initial_backoff_seconds: float = 2.0,
