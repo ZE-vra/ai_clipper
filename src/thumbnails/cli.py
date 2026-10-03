@@ -12,6 +12,7 @@ from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentEntity, ContentEvent, ContentUnderstanding
 from src.thumbnails.domain.geometry import BoundingBox, Region, Size
 from src.thumbnails.domain.target import ThumbnailTarget
+from src.thumbnails.intelligence.content_understanding_provider import GeminiContentUnderstandingProvider
 from src.thumbnails.frame_extractor import FFmpegFrameExtractor
 from src.thumbnails.orchestration.thumbnail_orchestrator import ThumbnailOrchestrator
 from src.thumbnails.perception.frame_discovery import FrameDiscovery
@@ -137,7 +138,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate a thumbnail with the V2 creative pipeline."
     )
     parser.add_argument("source_video", type=Path, help="Path to a local source video.")
-    parser.add_argument("--input", required=True, type=Path, help="JSON file containing brief and content understanding.")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--input", type=Path, help="JSON file containing brief and content understanding.")
+    source.add_argument("--transcript", type=Path, help="Transcript text file; Gemini generates the brief and content understanding.")
     parser.add_argument("--output", required=True, type=Path, help="Destination image path.")
     parser.add_argument("--candidates-dir", type=Path, help="Directory for sampled frames and derived assets.")
     parser.add_argument(
@@ -158,7 +161,18 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("--samples must be at least 1.")
         if not args.source_video.is_file():
             raise FileNotFoundError(f"Source video does not exist: {args.source_video}")
-        brief, understanding, target = _load_request(args.input)
+        if args.input:
+            brief, understanding, target = _load_request(args.input)
+        else:
+            if not args.transcript.is_file():
+                raise FileNotFoundError(f"Transcript file does not exist: {args.transcript}")
+            transcript = args.transcript.read_text(encoding="utf-8")
+            brief, understanding = GeminiContentUnderstandingProvider.from_env().understand(transcript)
+            target = ThumbnailTarget(
+                target_id="youtube-16x9",
+                platform="youtube",
+                size=Size(width=1280, height=720),
+            )
 
         model = None
         if args.subject_model:

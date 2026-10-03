@@ -87,6 +87,16 @@ python -m src.thumbnails.cli path/to/input.mp4 --input examples/thumbnail_v2_req
 
 The CLI does not download model weights implicitly. Without `--subject-model`, it can use source-frame and enhanced-frame strategies but makes no semantic subject-detection claims.
 
-The request schema is illustrated in [examples/thumbnail_v2_request.json](examples/thumbnail_v2_request.json). The `brief` and `understanding` sections are required; `target` is optional and defaults to a 1280×720 YouTube target. Times in events are seconds from the start of the source video.
+The request schema is illustrated in [examples/thumbnail_v2_request.json](examples/thumbnail_v2_request.json). The `brief` and `understanding` sections are required in JSON mode; `target` is optional and defaults to a 1280×720 YouTube target. Times in events are seconds from the start of the source video.
+
+### Generate the brief from a transcript
+
+Instead of hand-authoring the JSON, provide a transcript text file. V2 uses Gemini to create the brief and structured content understanding, then continues through the same thumbnail pipeline:
+
+```powershell
+python -m src.thumbnails.cli path/to/input.mp4 --transcript path/to/transcript.txt --output output/thumbnail.jpg
+```
+
+Set `GEMINI_API_KEY` in the environment. This mode requires the Google GenAI SDK. The generated understanding is grounded in transcript text; it cannot establish visual facts that the transcript does not contain. Use `--input` when you already have reviewed, structured inputs. The two input modes are mutually exclusive.
 
 This entry point is experimental and does not replace the existing clipper CLI.
