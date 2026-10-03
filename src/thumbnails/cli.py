@@ -78,6 +78,10 @@ def _load_request(path: Path) -> tuple[ThumbnailBrief, ContentUnderstanding, Thu
         understanding_data = data["understanding"]
     except KeyError as exc:
         raise ValueError(f"Input JSON is missing required section: {exc.args[0]}") from exc
+    if not isinstance(brief_data, dict):
+        raise ValueError("The 'brief' section must be a JSON object.")
+    if not isinstance(understanding_data, dict):
+        raise ValueError("The 'understanding' section must be a JSON object.")
 
     brief = ThumbnailBrief(
         **{
@@ -106,6 +110,8 @@ def _load_request(path: Path) -> tuple[ThumbnailBrief, ContentUnderstanding, Thu
     )
 
     target_data = data.get("target", {})
+    if not isinstance(target_data, dict):
+        raise ValueError("The 'target' section must be a JSON object.")
     width = int(target_data.get("width", 1280))
     height = int(target_data.get("height", 720))
     safe_regions = tuple(
@@ -192,6 +198,8 @@ def main(argv: list[str] | None = None) -> int:
             subject_mask_provider=mask_provider,
         )
         candidates_dir = args.candidates_dir or args.output.parent / f"{args.output.stem}_work"
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        candidates_dir.mkdir(parents=True, exist_ok=True)
         result = orchestrator.generate(
             source_video_path=args.source_video,
             output_path=args.output,
