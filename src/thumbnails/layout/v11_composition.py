@@ -372,16 +372,21 @@ class V11CompositionPlanner:
         ]
 
         left_width = exclusion.left - margin
-        if left_width >= 0.35:
-            candidates.append(
-                BoundingBox(margin, 0.10, exclusion.left - margin, 0.78)
-            )
-
         right_width = (1.0 - margin) - exclusion.right
-        if right_width >= 0.35:
-            candidates.append(
-                BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
-            )
+
+        # Full-height side fields are a fallback for centered compositions.
+        # When a side is explicitly staged, keep the opposing field within
+        # the requested top/bottom text band instead of silently overriding
+        # that composition decision with a tall side column.
+        if self.config.preferred_subject_side == "center":
+            if left_width >= 0.35:
+                candidates.append(
+                    BoundingBox(margin, 0.10, exclusion.left - margin, 0.78)
+                )
+            if right_width >= 0.35:
+                candidates.append(
+                    BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
+                )
 
         # When the subject is deliberately staged to one side, provide an
         # opposing text field that also respects the requested top/bottom band.
