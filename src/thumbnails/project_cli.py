@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("--samples must be at least 1.")
 
         source_path = Path(args.source).expanduser()
-        section_match = re.fullmatch(r"section_\\d+\\.mp4", source_path.name, re.IGNORECASE)
+        section_match = re.fullmatch(r"section_\d+\.mp4", source_path.name, re.IGNORECASE)
         if section_match and source_path.parent.name.lower() == "source":
             # A saved section already identifies its project directory, so callers
             # do not need to know or re-enter the original video path or URL.
