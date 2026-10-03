@@ -139,12 +139,20 @@ def test_shorts_portrait_uses_large_attention_grabbing_headline_scale() -> None:
         maximum_font_size=100,
         minimum_font_size=42,
     )
+    shorts_target = ThumbnailTarget(
+        target_id="youtube-shorts-9x16",
+        platform="youtube",
+        size=Size(1080, 1920),
+    )
     plan = TypographyPlanner(config=config).plan(
         copy=(CopyBlock("FREE DISNEY TRIP", CopyRole.HOOK),),
         composition=_composition(BoundingBox(0.0, 0.0, 0.60, 0.90)),
-        target=_target(),
+        target=shorts_target,
     )
 
     # The requested 1.05 initial scale is retained, while the fit loop
     # may reduce it to keep longer headlines inside the available region.
     assert plan.blocks[0].font_size >= 80
+    assert plan.blocks[0].text_bounds.top >= 0.04
+    assert plan.blocks[0].text_bounds.bottom <= 0.30
+    assert plan.blocks[0].color == "#FFD700"
