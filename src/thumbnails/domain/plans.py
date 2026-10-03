@@ -195,6 +195,7 @@ class ThumbnailRenderPlan:
     visual_treatment: VisualTreatmentPlan
 
     background_asset: Optional[VisualAsset] = None
+    foreground_asset_id: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.canvas_width <= 0:
