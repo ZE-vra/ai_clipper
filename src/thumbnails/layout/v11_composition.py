@@ -189,9 +189,9 @@ class V11CompositionPlanner:
         # critical V1.1 change: the image is staged for the text instead of
         # simply cropped around the person.
         desired_x = {
-            "left": 0.32,
+            "left": 0.25,
             "center": 0.50,
-            "right": 0.68,
+            "right": 0.75,
         }[subject_side]
         desired_y = {
             "top": 0.68,
@@ -201,16 +201,25 @@ class V11CompositionPlanner:
         subject_center_x = center_x
         subject_center_y = (subject.top + subject.bottom) / 2.0
         desired_left = subject_center_x - desired_x * crop_width
-        min_left = max(
-            0.0,
-            subject.right
-            + self.config.subject_clearance
-            - crop_width,
-        )
-        max_left = min(
-            1.0 - crop_width,
-            subject.left - self.config.subject_clearance,
-        )
+        # Side staging is only valid when the complete subject remains in
+        # the crop. Prefer the requested side while preserving the subject
+        # bounds; requiring an extra clearance on both sides can make a
+        # feasible opposing text field mathematically impossible near an
+        # edge. Centered layouts retain the configured clearance.
+        if subject_side == "center":
+            min_left = max(
+                0.0,
+                subject.right
+                + self.config.subject_clearance
+                - crop_width,
+            )
+            max_left = min(
+                1.0 - crop_width,
+                subject.left - self.config.subject_clearance,
+            )
+        else:
+            min_left = max(0.0, subject.right - crop_width)
+            max_left = min(1.0 - crop_width, subject.left)
 
         if min_left <= max_left:
             left = min(
@@ -363,26 +372,31 @@ class V11CompositionPlanner:
         ]
 
         left_width = exclusion.left - margin
-        if left_width >= 0.35:
-            candidates.append(
-                BoundingBox(margin, 0.10, exclusion.left - margin, 0.78)
-            )
-
         right_width = (1.0 - margin) - exclusion.right
-        if right_width >= 0.35:
-            candidates.append(
-                BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
-            )
+
+        # Full-height side fields are a fallback for centered compositions.
+        # When a side is explicitly staged, keep the opposing field within
+        # the requested top/bottom text band instead of silently overriding
+        # that composition decision with a tall side column.
+        if self.config.preferred_subject_side == "center":
+            if left_width >= 0.35:
+                candidates.append(
+                    BoundingBox(margin, 0.10, exclusion.left - margin, 0.78)
+                )
+            if right_width >= 0.35:
+                candidates.append(
+                    BoundingBox(exclusion.right + margin, 0.10, 1.0 - margin, 0.78)
+                )
 
         # When the subject is deliberately staged to one side, provide an
         # opposing text field that also respects the requested top/bottom band.
         if self.config.preferred_subject_side == "right" and left_width >= 0.35:
             candidates.append(
-                BoundingBox(margin, margin, exclusion.left - margin, 0.45)
+                BoundingBox(margin, margin, exclusion.left - margin, 0.44)
             )
         elif self.config.preferred_subject_side == "left" and right_width >= 0.35:
             candidates.append(
-                BoundingBox(exclusion.right + margin, margin, 1.0 - margin, 0.45)
+                BoundingBox(exclusion.right + margin, margin, 1.0 - margin, 0.44)
             )
 
         safe_candidates: list[BoundingBox] = []

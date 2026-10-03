@@ -1,0 +1,68 @@
+name: Thumbnail tests
+
+on:
+  pull_request:
+    paths:
+      - "src/thumbnails/**"
+      - "tests/thumbnails/**"
+      - "requirements.txt"
+      - ".github/workflows/thumbnail-tests.yml"
+  push:
+    branches:
+      - "feat/thumbnail-v2-creative-engine"
+      - "fix/thumbnail-v2-executable-strategy-plans"
+    paths:
+      - "src/thumbnails/**"
+      - "tests/thumbnails/**"
+      - "requirements.txt"
+      - ".github/workflows/thumbnail-tests.yml"
+
+jobs:
+  thumbnail-v2-slice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg fonts-liberation
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run V2 vertical-slice tests
+        run: >-
+          python -m pytest
+          tests/thumbnails/intelligence/test_strategy_planner.py
+          tests/thumbnails/intelligence/test_creative_slice.py
+          tests/thumbnails/orchestration/test_thumbnail_orchestrator.py
+          -q
+
+  thumbnail-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg fonts-liberation
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run thumbnail tests
+        run: python -m pytest tests/thumbnails -q

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +12,7 @@ from src.thumbnails.domain.assets import (
 )
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
+from src.thumbnails.domain.concepts import VisualStrategy
 from src.thumbnails.domain.geometry import BoundingBox, Point, Region, Size
 from src.thumbnails.domain.target import ThumbnailTarget
 from src.thumbnails.intelligence.creative_director import RuleBasedCreativeDirector
@@ -52,8 +54,13 @@ def _candidate(image_path: Path) -> FrameCandidate:
             ),
         ),
     )
+    # Candidate identities must be unique when multiple frames are discovered.
+    # Using a constant ID makes the orchestrator resolve both matches to the
+    # first candidate, hiding whether fallback to the valid frame works.
+    asset_id = f"frame-{image_path.stem}"
+    candidate_id = f"candidate-{image_path.stem}"
     asset = VisualAsset(
-        asset_id="frame-001",
+        asset_id=asset_id,
         provenance=AssetProvenance(
             kind=AssetProvenanceKind.SOURCE_FRAME,
             source_timestamps=(12.0,),
@@ -62,7 +69,7 @@ def _candidate(image_path: Path) -> FrameCandidate:
         source_timestamp=12.0,
     )
     return FrameCandidate(
-        candidate_id="candidate-001",
+        candidate_id=candidate_id,
         timestamp=12.0,
         asset=asset,
         perception=perception,
@@ -172,6 +179,67 @@ def test_v2_orchestrator_skips_broken_candidate_and_uses_next_valid_one(
         max_matches_per_concept=2,
     )
 
+    output = tmp_path / "thumbnail.jpg"
+
+    result = orchestrator.generate(
+        source_video_path=source_video,
+        output_path=output,
+        candidates_dir=tmp_path / "candidates",
+        brief=ThumbnailBrief(
+            core_hook="$2M CARPET ON A PLANE?!",
+            subject="private jet",
+            promise="A $2 million carpet is revealed.",
+            curiosity_angle="Why is the carpet worth $2 million?",
+            emotional_direction="surprise",
+            important_objects=("carpet",),
+            visual_evidence=("luxury jet interior",),
+        ),
+        understanding=ContentUnderstanding(
+            entities=(),
+            events=(),
+            confidence=1.0,
+        ),
+        target=_target(),
+    )
+
+    assert result.status.value == "success"
+    assert result.output_path == str(output)
+    assert output.is_file()
+
+
+
+class UnsupportedFirstConceptDirector:
+    def create(self, *, brief, understanding, max_concepts):
+        concepts = RuleBasedCreativeDirector().create(
+            brief=brief,
+            understanding=understanding,
+            max_concepts=max_concepts,
+        )
+        if not concepts:
+            return concepts
+        return (
+            replace(
+                concepts[0],
+                candidate_strategies=(VisualStrategy.HYBRID,),
+            ),
+            *concepts[1:],
+        )
+
+
+def test_v2_orchestrator_skips_unsupported_concept_and_uses_next(
+    tmp_path: Path,
+) -> None:
+    source_video = tmp_path / "source.mp4"
+    source_video.write_bytes(b"placeholder")
+
+    frame = tmp_path / "frame.jpg"
+    Image.new("RGB", (1920, 1080), (30, 80, 120)).save(frame)
+
+    orchestrator = ThumbnailOrchestrator(
+        frame_discovery=FakeFrameDiscovery(_candidate(frame)),
+        creative_director=UnsupportedFirstConceptDirector(),
+        max_concepts=2,
+    )
     output = tmp_path / "thumbnail.jpg"
 
     result = orchestrator.generate(

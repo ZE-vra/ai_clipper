@@ -118,15 +118,16 @@ class SemanticFrameSelector:
         )
         body_edge_score = normalized(body_edge_clearance)
 
-        # Prefer frames that naturally expose a meaningful left/right field
-        # for typography instead of forcing text onto the subject's torso.
+        # Reward genuine side space strongly enough to overcome small,
+        # reasonable differences in raw image quality. This is the evidence
+        # the vertical composition needs to place text beside the subject.
         side_space = max(bounds.left, 1.0 - bounds.right)
         upper_space = max(0.0, bounds.top)
         lower_space = max(0.0, 1.0 - bounds.bottom)
 
         side_score = min(
             1.0,
-            side_space / self.minimum_text_space,
+            side_space / (self.minimum_text_space * 1.5),
         )
         vertical_score = min(
             1.0,
@@ -134,8 +135,8 @@ class SemanticFrameSelector:
         )
 
         return (
-            0.50 * head_edge_score
-            + 0.20 * body_edge_score
-            + 0.25 * side_score
+            0.45 * head_edge_score
+            + 0.15 * body_edge_score
+            + 0.35 * side_score
             + 0.05 * vertical_score
         )

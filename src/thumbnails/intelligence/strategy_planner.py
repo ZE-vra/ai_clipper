@@ -70,12 +70,25 @@ class StrategyPlanner:
 
     @staticmethod
     def _select_strategy(concept: ThumbnailConcept) -> VisualStrategy:
-        for preferred in (
+        executable_strategies = (
             VisualStrategy.SOURCE_FRAME,
             VisualStrategy.ENHANCED_FRAME,
             VisualStrategy.SUBJECT_CUTOUT,
-        ):
-            if preferred in concept.candidate_strategies:
-                return preferred
+        )
 
-        return concept.candidate_strategies[0]
+        # Legacy concepts may specify one explicit strategy without a candidate list.
+        if concept.visual_strategy is not None:
+            if concept.visual_strategy not in executable_strategies:
+                raise ValueError(
+                    f"Strategy {concept.visual_strategy.value!r} is not executable "
+                    "by StrategyPlanner."
+                )
+            return concept.visual_strategy
+
+        for strategy in executable_strategies:
+            if strategy in concept.candidate_strategies:
+                return strategy
+
+        raise ValueError(
+            f"Concept {concept.concept_id!r} has no executable candidate strategy."
+        )

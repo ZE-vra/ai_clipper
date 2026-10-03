@@ -194,7 +194,14 @@ class TypographyPlanner:
 
             for block in blocks:
                 size = self._font_size(block, scale)
-                rendered, lines = self._wrap(block.text, size, width)
+                # Reserve horizontal space for the renderer's text stroke;
+                # Pillow includes the stroke in its rendered text bounds.
+                # Leave a small extra margin for integer pixel-bound rounding in the renderer.
+                text_width = width - (2 * self.config.stroke_width) - 2
+                if text_width <= 0:
+                    fits = False
+                    break
+                rendered, lines = self._wrap(block.text, size, text_width)
 
                 if len(lines) > self.config.max_lines_per_block:
                     fits = False
@@ -207,7 +214,7 @@ class TypographyPlanner:
                     weight=self.config.weight,
                 )
 
-                if measured.width > width + 0.5:
+                if measured.width + (2 * self.config.stroke_width) > width - 1.0:
                     fits = False
                     break
 

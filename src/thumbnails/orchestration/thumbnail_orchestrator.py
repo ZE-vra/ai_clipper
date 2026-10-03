@@ -144,11 +144,16 @@ class ThumbnailOrchestrator:
                     if candidate.perception is None:
                         continue
 
-                    asset_plan = self.strategy_planner.plan(
-                        concept=concept,
-                        match=match,
-                        candidates=candidates,
-                    )
+                    try:
+                        asset_plan = self.strategy_planner.plan(
+                            concept=concept,
+                            match=match,
+                            candidates=candidates,
+                        )
+                    except ValueError:
+                        # An unsupported strategy for one concept must not abort
+                        # the search; continue to other concepts and matches.
+                        continue
 
                     # The first executable slice is intentionally source-frame
                     # only. Unsupported strategies remain candidates for later
