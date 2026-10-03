@@ -134,8 +134,8 @@ class SemanticFrameSelector:
         )
 
         return (
-            0.50 * head_edge_score
-            + 0.20 * body_edge_score
-            + 0.25 * side_score
+            0.45 * head_edge_score
+            + 0.15 * body_edge_score
+            + 0.35 * side_score
             + 0.05 * vertical_score
         )

@@ -53,7 +53,7 @@ def _candidate(image_path: Path) -> FrameCandidate:
         ),
     )
     asset = VisualAsset(
-        asset_id="frame-001",
+        asset_id=f"frame-{image_path.stem}",
         provenance=AssetProvenance(
             kind=AssetProvenanceKind.SOURCE_FRAME,
             source_timestamps=(12.0,),
@@ -62,7 +62,7 @@ def _candidate(image_path: Path) -> FrameCandidate:
         source_timestamp=12.0,
     )
     return FrameCandidate(
-        candidate_id="candidate-001",
+        candidate_id=f"candidate-{image_path.stem}",
         timestamp=12.0,
         asset=asset,
         perception=perception,
