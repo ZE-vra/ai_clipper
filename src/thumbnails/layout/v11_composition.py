@@ -392,11 +392,11 @@ class V11CompositionPlanner:
         # opposing text field that also respects the requested top/bottom band.
         if self.config.preferred_subject_side == "right" and left_width >= 0.35:
             candidates.append(
-                BoundingBox(margin, margin, exclusion.left - margin, 0.45)
+                BoundingBox(margin, margin, exclusion.left - margin, 0.44)
             )
         elif self.config.preferred_subject_side == "left" and right_width >= 0.35:
             candidates.append(
-                BoundingBox(exclusion.right + margin, margin, 1.0 - margin, 0.45)
+                BoundingBox(exclusion.right + margin, margin, 1.0 - margin, 0.44)
             )
 
         safe_candidates: list[BoundingBox] = []
