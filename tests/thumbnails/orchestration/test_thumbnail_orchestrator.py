@@ -436,3 +436,42 @@ def test_v2_orchestrator_executes_subject_cutout_strategy(tmp_path: Path) -> Non
     assert output.is_file()
     assert (tmp_path / "candidates" / "derived_assets" / "frame-frame-subject-mask.png").is_file()
     assert (tmp_path / "candidates" / "derived_assets" / "frame-frame-subject-cutout.png").is_file()
+
+
+class RejectingTypographyPlanner:
+    def plan(self, *, copy, composition, target):
+        raise ValueError("Copy cannot fit without violating minimum font size or line limits.")
+
+
+def test_v2_reports_why_all_layout_candidates_were_rejected(tmp_path: Path) -> None:
+    source_video = tmp_path / "source.mp4"
+    source_video.write_bytes(b"placeholder")
+
+    frame = tmp_path / "frame.jpg"
+    Image.new("RGB", (1920, 1080), (30, 80, 120)).save(frame)
+
+    orchestrator = ThumbnailOrchestrator(
+        frame_discovery=FakeFrameDiscovery(_candidate(frame)),
+        typography_planner=RejectingTypographyPlanner(),
+        max_concepts=1,
+        max_matches_per_concept=1,
+    )
+
+    result = orchestrator.generate(
+        source_video_path=source_video,
+        output_path=tmp_path / "thumbnail.jpg",
+        candidates_dir=tmp_path / "candidates",
+        brief=ThumbnailBrief(
+            core_hook="A deliberately overlong hook that cannot fit in the available thumbnail text region",
+            subject="test subject",
+            promise="A test promise.",
+            curiosity_angle="What happens?",
+        ),
+        understanding=ContentUnderstanding(entities=(), events=(), confidence=1.0),
+        target=_target(),
+    )
+
+    assert result.status.value == "no_acceptable_result"
+    assert result.failure_reason is not None
+    assert "no layout candidates could be built" in result.failure_reason
+    assert "Copy cannot fit" in result.failure_reason

@@ -132,6 +132,7 @@ class ThumbnailOrchestrator:
             assets = {candidate.asset.asset_id: candidate.asset for candidate in candidates}
 
             layout_candidates: list[LayoutCandidate] = []
+            layout_build_failures: list[str] = []
 
             for concept in concepts:
                 if concept.copy is None:
@@ -157,9 +158,11 @@ class ThumbnailOrchestrator:
                             match=match,
                             candidates=candidates,
                         )
-                    except ValueError:
-                        # An unsupported strategy for one concept must not abort
-                        # the search; continue to other concepts and matches.
+                    except ValueError as exc:
+                        # Preserve per-concept failures so an exhausted search is diagnosable.
+                        layout_build_failures.append(
+                            f"{concept.concept_id}/{candidate.asset.asset_id}: strategy planning: {exc}"
+                        )
                         continue
 
                     # Source and enhanced frames reuse the discovered asset.
@@ -250,10 +253,12 @@ class ThumbnailOrchestrator:
                             visual_treatment=treatment,
                             foreground_asset_id=foreground_asset_id,
                         )
-                    except (TypeError, ValueError, FileNotFoundError):
+                    except (TypeError, ValueError, FileNotFoundError) as exc:
                         # One bad candidate must not destroy the remaining search
-                        # space. The evaluator/orchestrator can only choose from
-                        # plans that successfully materialize.
+                        # space, but retain the reason if every candidate is rejected.
+                        layout_build_failures.append(
+                            f"{concept.concept_id}/{candidate.asset.asset_id}: {exc}"
+                        )
                         continue
 
                     layout_candidates.append(
@@ -270,9 +275,16 @@ class ThumbnailOrchestrator:
             )
 
             if negotiation.selected_candidate is None:
+                failure_reason = negotiation.failure_reason
+                if not layout_candidates and layout_build_failures:
+                    details = "; ".join(layout_build_failures[:3])
+                    remaining = len(layout_build_failures) - 3
+                    if remaining > 0:
+                        details += f"; and {remaining} more rejection(s)"
+                    failure_reason = f"no layout candidates could be built: {details}"
                 return ThumbnailResult(
                     status=ThumbnailResultStatus.NO_ACCEPTABLE_RESULT,
-                    failure_reason=negotiation.failure_reason,
+                    failure_reason=failure_reason,
                 )
 
             selected_plan = negotiation.selected_candidate.plan
