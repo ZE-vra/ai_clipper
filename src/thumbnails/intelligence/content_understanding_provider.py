@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Callable
+import time
+from typing import Callable, TypeVar
 
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import (
@@ -12,6 +13,67 @@ from src.thumbnails.domain.content import (
     ContentEvent,
     ContentUnderstanding,
 )
+
+T = TypeVar("T")
+
+
+def _call_with_transient_retries(
+    request: Callable[[], T],
+    *,
+    max_retries: int = 3,
+    sleep: Callable[[float], None] = time.sleep,
+) -> T:
+    """Retry temporary Gemini service failures with exponential backoff.
+
+    Keep quota errors and non-transient failures immediate: retrying those
+    requests cannot resolve the underlying problem.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            return request()
+        except Exception as exc:
+            error_text = str(exc).lower()
+
+            if "429" in error_text or "resource_exhausted" in error_text:
+                raise RuntimeError(
+                    "Gemini quota/rate limit reached. Check the API quota "
+                    "and billing for the configured project."
+                ) from exc
+
+            transient_error = any(
+                marker in error_text
+                for marker in (
+                    "500",
+                    "502",
+                    "503",
+                    "504",
+                    "unavailable",
+                    "timeout",
+                    "timed out",
+                    "connection reset",
+                    "connection error",
+                )
+            )
+            if not transient_error:
+                raise RuntimeError(
+                    f"Gemini content-understanding request failed: {exc}"
+                ) from exc
+
+            if attempt == max_retries:
+                raise RuntimeError(
+                    "Gemini content-understanding request failed after "
+                    f"{max_retries} attempts: {exc}"
+                ) from exc
+
+            wait_time = 2**attempt
+            print(
+                "Gemini temporary server error. "
+                f"Retrying in {wait_time}s "
+                f"(attempt {attempt}/{max_retries})..."
+            )
+            sleep(wait_time)
+
+    raise RuntimeError("Gemini content-understanding request failed unexpectedly.")
 
 
 class GeminiContentUnderstandingProvider:
@@ -42,14 +104,15 @@ class GeminiContentUnderstandingProvider:
         client = genai.Client(api_key=api_key)
 
         def generate(prompt: str) -> str:
-            try:
-                response = client.models.generate_content(
+            response = _call_with_transient_retries(
+                lambda: client.models.generate_content(
                     model=model,
                     contents=prompt,
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    ),
                 )
-            except Exception as exc:
-                raise RuntimeError(f"Gemini content-understanding request failed: {exc}") from exc
+            )
             if not response.text:
                 raise ValueError("Gemini returned an empty content-understanding response.")
             return response.text.strip()
