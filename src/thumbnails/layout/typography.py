@@ -207,7 +207,7 @@ class TypographyPlanner:
                     weight=self.config.weight,
                 )
 
-                if measured.width > width + 0.5:
+                if measured.width + 2 * self.config.stroke_width > width + 0.5:
                     fits = False
                     break
 
@@ -291,18 +291,20 @@ class TypographyPlanner:
         raise ValueError(
             "Copy cannot fit without violating minimum font size or line limits."
         )
+
     def _wrap(self, text: str, size: int, width: float) -> tuple[str, list[str]]:
         words = text.split()
         if not words:
             return "", [""]
         lines: list[str] = []
         current: list[str] = []
+        usable_width = width - 2 * self.config.stroke_width
         for word in words:
             candidate = " ".join((*current, word))
             measured = self.measurer.measure(
                 candidate, font_name=self.config.font_name, font_size=size, weight=self.config.weight
             )
-            if current and measured.width > width:
+            if current and measured.width > usable_width:
                 lines.append(" ".join(current))
                 current = [word]
             else:
