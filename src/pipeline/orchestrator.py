@@ -50,6 +50,8 @@ from src.packaging.persistence import (
     packaging_path,
     save_clip_packaging,
 )
+from src.thumbnails.domain.results import ThumbnailResultStatus
+from src.thumbnails.pipeline_stage import ThumbnailGenerator
 
 
 class PipelineError(ClipperError):
@@ -69,6 +71,7 @@ class PipelineOrchestrator:
         packager: Optional[BasePackager] = None,
         editing_planner: Optional[EditingPlanner] = None,
         editing_renderer: Optional[EditingRenderer] = None,
+        thumbnail_stage: Optional[ThumbnailGenerator] = None,
     ):
         self.intelligence_engine = intelligence_engine
 
@@ -113,6 +116,8 @@ class PipelineOrchestrator:
             if editing_renderer is not None
             else EditingRenderer()
         )
+        # Optional for library callers and tests; the primary CLI wires V2 in.
+        self.thumbnail_stage = thumbnail_stage
 
     def run(
         self,
@@ -458,12 +463,20 @@ class PipelineOrchestrator:
                 )
             )
 
-            self._ensure_packaging(
+            packaging = self._ensure_packaging(
                 decision=decision,
                 candidate_manifest=candidate_manifest,
                 source=source,
                 workspace=workspace,
             )
+
+            if self.thumbnail_stage is not None:
+                self._ensure_thumbnail(
+                    source=source,
+                    decision=decision,
+                    packaging=packaging,
+                    workspace=workspace,
+                )
 
         return rendered_clips
 
@@ -885,6 +898,14 @@ class PipelineOrchestrator:
             f"{decision.clip_id} with Gemini..."
         )
 
+        # Packaging is the source of the thumbnail's creative copy. If it must
+        # be regenerated, any thumbnail derived from the old packaging is stale.
+        self._delete_file(
+            workspace.root_dir
+            / "thumbnails"
+            / f"clip_{decision.clip_id:02d}_thumbnail.jpg"
+        )
+
         try:
             data = self.packager.package_clip(
                 clip=decision,
@@ -947,6 +968,91 @@ class PipelineOrchestrator:
         )
 
         return packaging
+
+    # ------------------------------------------------------------------
+    # Thumbnail V2 (local; reuses existing packaging)
+    # ------------------------------------------------------------------
+
+    def _ensure_thumbnail(
+        self,
+        source: VideoSource,
+        decision,
+        packaging: ClipPackaging,
+        workspace: ProjectWorkspace,
+    ) -> None:
+        """Generate a thumbnail without making another AI request.
+
+        The image is a checkpoint. A new packaging artifact invalidates its
+        thumbnail; a valid existing image is reused on resume.
+        """
+        output_path = (
+            workspace.root_dir
+            / "thumbnails"
+            / f"clip_{decision.clip_id:02d}_thumbnail.jpg"
+        )
+        candidates_dir = (
+            workspace.root_dir
+            / "thumbnail_work"
+            / f"clip_{decision.clip_id:02d}"
+        )
+
+        if output_path.is_file():
+            try:
+                from PIL import Image
+
+                with Image.open(output_path) as image:
+                    image.verify()
+            except (OSError, ValueError):
+                print(
+                    f"Existing thumbnail for clip {decision.clip_id} "
+                    "is invalid; regenerating."
+                )
+                self._delete_file(output_path)
+            else:
+                print(
+                    f"Thumbnail checkpoint for clip {decision.clip_id} "
+                    "is valid. Skipping."
+                )
+                return
+
+        source_section = workspace.source_dir / (
+            f"section_{decision.clip_id:02d}.mp4"
+        )
+        try:
+            source_section = self._ensure_source_section(
+                source=source,
+                decision=decision,
+                acquired_path=source_section,
+            )
+            result = self.thumbnail_stage.generate(
+                source_video_path=source_section,
+                packaging=packaging,
+                output_path=output_path,
+                candidates_dir=candidates_dir,
+            )
+            if (
+                result.status in {
+                    ThumbnailResultStatus.SUCCESS,
+                    ThumbnailResultStatus.FALLBACK_SUCCESS,
+                }
+                and result.output_path
+                and Path(result.output_path).is_file()
+            ):
+                print(
+                    f"Thumbnail generated for clip {decision.clip_id}: "
+                    f"{result.output_path}"
+                )
+            else:
+                print(
+                    f"Thumbnail skipped for clip {decision.clip_id}: "
+                    f"{result.failure_reason or result.status.value}"
+                )
+        except Exception as exc:
+            # Thumbnail generation must not discard an otherwise valid clip.
+            print(
+                f"Thumbnail generation failed for clip "
+                f"{decision.clip_id}: {type(exc).__name__}: {exc}"
+            )
 
     @staticmethod
     def _get_candidate_transcript(
@@ -1118,6 +1224,11 @@ class PipelineOrchestrator:
                 cls._delete_file(
                     clip_path
                 )
+
+        thumbnails_dir = workspace.root_dir / "thumbnails"
+        if thumbnails_dir.exists():
+            for thumbnail_path in thumbnails_dir.glob("clip_*_thumbnail.jpg"):
+                cls._delete_file(thumbnail_path)
 
         if workspace.packaging_dir.exists():
             for packaging_path_item in (

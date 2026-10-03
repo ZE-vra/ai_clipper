@@ -5,6 +5,7 @@ import sys
 from src.exceptions import ClipperError
 from src.intelligence.gemini import GeminiDirector
 from src.pipeline.orchestrator import PipelineOrchestrator
+from src.thumbnails.pipeline_stage import ThumbnailV2Stage
 
 
 def main() -> int:
@@ -19,6 +20,7 @@ def main() -> int:
 
         pipeline = PipelineOrchestrator(
             intelligence_engine=intelligence_engine,
+            thumbnail_stage=ThumbnailV2Stage(),
         )
 
         rendered_clips = pipeline.run(source_location)
