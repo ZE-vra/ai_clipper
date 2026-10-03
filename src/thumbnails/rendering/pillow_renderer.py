@@ -51,6 +51,7 @@ class PillowThumbnailRenderer:
 
         canvas = self._render_visuals(plan)
         canvas = self._apply_visual_treatment(canvas, plan)
+        canvas = self._apply_editorial_gradient(canvas)
         self._render_typography(canvas, plan)
         canvas = self._render_foreground(canvas, plan)
 
@@ -298,6 +299,24 @@ class PillowThumbnailRenderer:
             image.convert("RGBA"),
             overlay,
         ).convert("RGB")
+
+    @staticmethod
+    def _apply_editorial_gradient(image: Image.Image) -> Image.Image:
+        """Add a restrained lower fade so portrait copy feels integrated, not pasted on."""
+        width, height = image.size
+        if height <= width:
+            return image
+
+        overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        start_y = round(height * 0.48)
+        fade_height = max(1, height - start_y)
+        for y in range(start_y, height):
+            progress = (y - start_y) / fade_height
+            # Ease-in keeps the image open while giving the lower copy a dark anchor.
+            opacity = round(190 * progress * progress)
+            draw.line((0, y, width, y), fill=(8, 12, 20, opacity))
+        return Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
 
     def _render_typography(
         self,
