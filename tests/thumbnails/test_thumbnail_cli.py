@@ -111,7 +111,7 @@ def test_main_wires_auto_transcription_into_gemini_and_orchestrator(tmp_path: Pa
     class FakeGeminiProvider:
         def understand(self, transcript: str):
             calls["transcript"] = transcript
-            return ThumbnailBrief(core_hook="HIDDEN ROOM"), ContentUnderstanding()
+            return ThumbnailBrief(\n                core_hook="HIDDEN ROOM",\n                subject="the host",\n                promise="See the hidden room",\n                curiosity_angle="What is inside?",\n            ), ContentUnderstanding()
 
     class FakeOrchestrator:
         def __init__(self, frame_discovery, subject_mask_provider=None) -> None:
