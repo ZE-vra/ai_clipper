@@ -149,6 +149,7 @@ class RuleBasedCreativeDirector:
                     composition_direction="Event-led composition with clear visual hierarchy.",
                     rationale="Temporal event selected before any frame is selected.",
                     priority=3,
+                    preferred_time_range=(event.start_time, event.end_time),
                 )
             )
 
