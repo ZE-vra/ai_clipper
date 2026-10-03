@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.thumbnails.cli import EmptySubjectAnalyzer, _load_request
+from src.thumbnails.cli import EmptySubjectAnalyzer, _load_request, build_parser
 from src.thumbnails.domain.content import ContentUnderstanding
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.target import ThumbnailTarget
@@ -75,3 +75,16 @@ def test_empty_subject_analyzer_makes_no_semantic_subject_claims() -> None:
 
     assert isinstance(result, SubjectAnalysisEvidence)
     assert result.subjects == ()
+
+
+def test_cli_supports_automatic_transcription_and_whisper_options():
+    args = build_parser().parse_args([
+        "source.mp4", "--auto-transcribe", "--whisper-model", "small",
+        "--language", "en", "--output", "thumbnail.jpg",
+    ])
+
+    assert args.auto_transcribe is True
+    assert args.whisper_model == "small"
+    assert args.language == "en"
+    assert args.transcript is None
+    assert args.input is None
