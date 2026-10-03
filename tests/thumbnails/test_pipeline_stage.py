@@ -51,3 +51,11 @@ def test_v2_stage_uses_packaging_and_does_not_require_a_model_provider(tmp_path:
     assert orchestrator.kwargs["target"].size.width == 1080
     assert orchestrator.kwargs["target"].size.height == 1920
     assert orchestrator.kwargs["target"].size.height / orchestrator.kwargs["target"].size.width == 16 / 9
+
+
+def test_default_stage_searches_more_moments_for_a_stronger_visual():
+    stage = ThumbnailV2Stage()
+
+    sampler = stage._orchestrator.frame_discovery.sampler
+
+    assert sampler.sample_count == 21

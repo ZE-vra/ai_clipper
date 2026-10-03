@@ -61,7 +61,8 @@ class ThumbnailV2Stage:
         orchestrator: ThumbnailOrchestrator | None = None,
         ffmpeg_binary: str = "ffmpeg",
         ffprobe_binary: str = "ffprobe",
-        sample_count: int = 9,
+        # Search a denser set of moments so the visual scorer can avoid weak frames.
+        sample_count: int = 21,
     ) -> None:
         if sample_count < 1:
             raise ValueError("sample_count must be at least 1.")
