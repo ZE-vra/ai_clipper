@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from typing import Callable
 
 from src.thumbnails.domain.brief import ThumbnailBrief
@@ -43,11 +42,14 @@ class GeminiContentUnderstandingProvider:
         client = genai.Client(api_key=api_key)
 
         def generate(prompt: str) -> str:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(response_mime_type="application/json"),
-            )
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(response_mime_type="application/json"),
+                )
+            except Exception as exc:
+                raise RuntimeError(f"Gemini content-understanding request failed: {exc}") from exc
             if not response.text:
                 raise ValueError("Gemini returned an empty content-understanding response.")
             return response.text.strip()
