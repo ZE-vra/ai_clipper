@@ -167,6 +167,10 @@ class EditingRenderer:
         canvas = plan.composition.canvas
         background = plan.composition.background
 
+        foreground = plan.composition.foreground
+        foreground_width = round(canvas.width * foreground.scale)
+        foreground_height = round(canvas.height * foreground.scale)
+
         filter_parts = [
             "[0:v]split=2[background][foreground]",
             (
@@ -180,7 +184,7 @@ class EditingRenderer:
             ),
             (
                 "[foreground]"
-                f"scale={canvas.width}:{canvas.height}:"
+                f"scale={foreground_width}:{foreground_height}:"
                 "force_original_aspect_ratio=decrease"
                 "[foreground_scaled]"
             ),
