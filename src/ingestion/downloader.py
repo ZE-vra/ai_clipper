@@ -20,33 +20,50 @@ def _is_youtube_url(location: str) -> bool:
 
 
 def _download_youtube_audio(url: str, output_dir: Path) -> Tuple[Path, str]:
-    """Downloads audio stream from YouTube using yt-dlp Python API and converts to MP3."""
+    """Download YouTube audio with retries for transient network failures."""
     out_file = output_dir / "audio.mp3"
-    
+
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
+        "format": "bestaudio/best",
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
         }],
-        'outtmpl': str(output_dir / 'audio.%(ext)s'),
-        'quiet': True,
-        'no_warnings': True,
+        "outtmpl": str(output_dir / "audio.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        # Googlevideo connections can be slow or intermittently unavailable.
+        "socket_timeout": 60,
+        "retries": 10,
+        "extractor_retries": 5,
+        "fragment_retries": 10,
+        "file_access_retries": 3,
+        "retry_sleep_functions": {
+            "http": lambda attempt: min(2 * attempt, 10),
+            "fragment": lambda attempt: min(2 * attempt, 10),
+            "extractor": lambda attempt: min(2 * attempt, 10),
+        },
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            video_title = info.get('title', 'YouTube Video') if info else 'YouTube Video'
+            video_title = info.get("title", "YouTube Video") if info else "YouTube Video"
     except yt_dlp.utils.DownloadError as e:
         err_msg = str(e).lower()
-        if "private" in err_msg or "unavailable" in err_msg or "removed" in err_msg:
+        if any(term in err_msg for term in ("private", "unavailable", "removed", "video is not available")):
             raise VideoUnavailableError(f"Video is unavailable or private: {url}") from e
-        elif "network" in err_msg or "unable to download" in err_msg:
-            raise NetworkError(f"Network error downloading video: {url}") from e
-        else:
-            raise IngestionError(f"yt-dlp failed to download audio: {e}") from e
+        if any(term in err_msg for term in (
+            "network", "unable to download", "timed out", "timeout",
+            "connection", "temporary failure", "temporary failure in name resolution",
+            "http error 5", "server returned 5",
+        )):
+            raise NetworkError(
+                "YouTube download failed after automatic retries. "
+                "Check your connection and try again; no transcription was started."
+            ) from e
+        raise IngestionError(f"yt-dlp failed to download audio: {e}") from e
     except Exception as e:
         raise IngestionError(f"Unexpected error during audio download: {e}") from e
 
