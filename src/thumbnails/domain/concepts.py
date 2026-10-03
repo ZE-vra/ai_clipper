@@ -83,11 +83,11 @@ class ThumbnailConcept:
     composition_direction: str = ""
     rationale: str = ""
     priority: int = 0
+    preferred_time_range: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
         if not self.concept_id.strip():
             raise ValueError("concept_id must not be blank.")
-        # During migration, legacy callers may provide only visual_strategy/copy.
         if not self.title.strip() and self.visual_strategy is None:
             raise ValueError("title must not be blank for v2 concepts.")
         if not self.visual_idea.strip() and self.visual_strategy is None:
@@ -100,3 +100,7 @@ class ThumbnailConcept:
             raise ValueError("copy must be provided for v2 concepts.")
         if not self.candidate_strategies and self.visual_strategy is None:
             raise ValueError("candidate_strategies must contain at least one strategy.")
+        if self.preferred_time_range is not None:
+            start, end = self.preferred_time_range
+            if start < 0 or end < start:
+                raise ValueError("preferred_time_range must be a non-negative ordered range.")
