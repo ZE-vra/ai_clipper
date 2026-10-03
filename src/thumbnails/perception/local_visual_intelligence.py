@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from PIL import Image
 
@@ -27,11 +28,12 @@ class LocalVisualIntelligenceAnalyzer:
         model_path: str | Path = "yolo26n-seg.pt",
         *,
         confidence_threshold: float = 0.35,
+        model: Any | None = None,
     ) -> None:
         if not 0.0 < confidence_threshold <= 1.0:
             raise ValueError("confidence_threshold must be between 0 and 1.")
 
-        self._model = YOLO(str(model_path))
+        self._model = model if model is not None else YOLO(str(model_path))
         self._confidence_threshold = confidence_threshold
 
     def analyze(
