@@ -2,3 +2,4 @@ Pillow
 ultralytics==8.4.158
 google-genai
 openai-whisper
+python-dotenv
