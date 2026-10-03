@@ -1,0 +1,50 @@
+{
+  "brief": {
+    "core_hook": "THE HIDDEN REVEAL",
+    "subject": "The host discovering what is behind the door",
+    "promise": "Show the moment the door opens",
+    "curiosity_angle": "What is behind the door?",
+    "emotional_direction": "surprise",
+    "important_entities": ["host"],
+    "important_objects": ["door"],
+    "visual_evidence": ["the host opening the door"],
+    "constraints": [],
+    "forbidden_misrepresentations": [
+      "Do not imply the reveal shows something that is not in the source."
+    ]
+  },
+  "understanding": {
+    "entities": [
+      {
+        "entity_id": "host",
+        "label": "Host",
+        "kind": "person",
+        "confidence": 0.95,
+        "evidence": ["Visible while opening the door"]
+      }
+    ],
+    "events": [
+      {
+        "event_id": "door-reveal",
+        "start_time": 4.0,
+        "end_time": 8.0,
+        "description": "The host opens the door and reacts to what is behind it",
+        "entity_ids": ["host"],
+        "importance": 0.9,
+        "confidence": 0.9
+      }
+    ],
+    "themes": ["surprise", "discovery"],
+    "claims": [],
+    "confidence": 0.9
+  },
+  "target": {
+    "target_id": "youtube-16x9",
+    "platform": "youtube",
+    "width": 1280,
+    "height": 720,
+    "safe_regions": [],
+    "minimum_text_size": 0,
+    "small_scale_preview_width": 160
+  }
+}
