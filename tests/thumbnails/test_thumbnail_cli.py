@@ -88,3 +88,72 @@ def test_cli_supports_automatic_transcription_and_whisper_options():
     assert args.language == "en"
     assert args.transcript is None
     assert args.input is None
+
+
+def test_main_wires_auto_transcription_into_gemini_and_orchestrator(tmp_path: Path, monkeypatch, capsys) -> None:
+    from types import SimpleNamespace
+
+    import src.thumbnails.cli as cli
+
+    source_video = tmp_path / "source.mp4"
+    source_video.write_bytes(b"video")
+    output_path = tmp_path / "output" / "thumbnail.png"
+    calls = {}
+
+    class FakeWhisperProvider:
+        def __init__(self, model_name: str, language: str | None = None) -> None:
+            calls["whisper_options"] = (model_name, language)
+
+        def transcribe(self, media_path: Path) -> str:
+            calls["media_path"] = media_path
+            return "  The host reveals a hidden room.  "
+
+    class FakeGeminiProvider:
+        def understand(self, transcript: str):
+            calls["transcript"] = transcript
+            return ThumbnailBrief(
+                core_hook="HIDDEN ROOM",
+                subject="the host",
+                promise="See the hidden room",
+                curiosity_angle="What is inside?",
+            ), ContentUnderstanding(entities=(), events=())
+
+    class FakeOrchestrator:
+        def __init__(self, frame_discovery, subject_mask_provider=None) -> None:
+            calls["orchestrator_mask_provider"] = subject_mask_provider
+
+        def generate(self, **kwargs):
+            calls["generate_kwargs"] = kwargs
+            return SimpleNamespace(
+                status=SimpleNamespace(value="success"),
+                output_path=kwargs["output_path"],
+                selected_attempt_id="attempt-1",
+                failure_reason=None,
+            )
+
+    monkeypatch.setattr(cli, "WhisperTranscriptProvider", FakeWhisperProvider)
+    monkeypatch.setattr(
+        cli.GeminiContentUnderstandingProvider,
+        "from_env",
+        classmethod(lambda cls: FakeGeminiProvider()),
+    )
+    monkeypatch.setattr(cli, "ThumbnailOrchestrator", FakeOrchestrator)
+
+    exit_code = cli.main([
+        str(source_video),
+        "--auto-transcribe",
+        "--whisper-model", "small",
+        "--language", "en",
+        "--output", str(output_path),
+    ])
+
+    assert exit_code == 0
+    assert calls["whisper_options"] == ("small", "en")
+    assert calls["media_path"] == source_video
+    assert calls["transcript"] == "  The host reveals a hidden room.  "
+    assert calls["generate_kwargs"]["source_video_path"] == source_video
+    assert calls["generate_kwargs"]["output_path"] == output_path
+    assert calls["generate_kwargs"]["brief"].core_hook == "HIDDEN ROOM"
+    assert calls["orchestrator_mask_provider"] is None
+    assert output_path.parent.is_dir()
+    assert "Thumbnail success:" in capsys.readouterr().out
