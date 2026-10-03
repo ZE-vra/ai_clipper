@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -51,11 +52,22 @@ def main(argv: list[str] | None = None) -> int:
         if args.samples < 1:
             raise ValueError("--samples must be at least 1.")
 
-        workspace = Config.find_workspace(args.source)
+        source_path = Path(args.source).expanduser()
+        section_match = re.fullmatch(r"section_\d+\.mp4", source_path.name, re.IGNORECASE)
+        if section_match and source_path.parent.name.lower() == "source":
+            # A saved section already identifies its project directory, so callers
+            # do not need to know or re-enter the original video path or URL.
+            workspace = Config.workspace_from_project_id(source_path.parent.parent.name)
+            if not workspace.root_dir.is_dir():
+                workspace = None
+        else:
+            workspace = Config.find_workspace(args.source)
+
         if workspace is None:
             raise FileNotFoundError(
-                "No saved project was found for this source. Run the main clipper "
-                "once first so its project checkpoints exist."
+                "No saved project was found for this source. Pass either the original "
+                "video path/YouTube URL or a saved section path such as "
+                r"projects\\youtube_VIDEO_ID\\source\\section_01.mp4."
             )
 
         packaging = load_clip_packaging(workspace, args.clip_id)
