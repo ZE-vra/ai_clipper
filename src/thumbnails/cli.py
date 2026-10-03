@@ -34,7 +34,7 @@ class EmptySubjectAnalyzer:
 class LocalModelSubjectAnalyzer:
     """Adapt the configured local visual model to the V2 perception contract."""
 
-    def __init__(self, model_path: Path) -> None:
+    def __init__(self, model_path: Path, model: Any) -> None:
         if not model_path.is_file():
             raise FileNotFoundError(
                 f"Subject model file does not exist: {model_path}. "
@@ -44,7 +44,7 @@ class LocalModelSubjectAnalyzer:
             LocalVisualIntelligenceAnalyzer,
         )
 
-        self._analyzer = LocalVisualIntelligenceAnalyzer(model_path=model_path)
+        self._analyzer = LocalVisualIntelligenceAnalyzer(model_path=model_path, model=model)
 
     def analyze(self, image_path: Path) -> SubjectAnalysisEvidence:
         result = self._analyzer.analyze(image_path)
@@ -154,8 +154,19 @@ def main(argv: list[str] | None = None) -> int:
             raise FileNotFoundError(f"Source video does not exist: {args.source_video}")
         brief, understanding, target = _load_request(args.input)
 
+        model = None
+        if args.subject_model:
+            if not args.subject_model.is_file():
+                raise FileNotFoundError(
+                    f"Subject model file does not exist: {args.subject_model}. "
+                    "Provide a local checkpoint; the CLI will not download weights."
+                )
+            from ultralytics import YOLO
+
+            model = YOLO(str(args.subject_model))
+
         subject_analyzer: SubjectAnalyzer = (
-            LocalModelSubjectAnalyzer(args.subject_model)
+            LocalModelSubjectAnalyzer(args.subject_model, model)
             if args.subject_model
             else EmptySubjectAnalyzer()
         )
@@ -169,13 +180,12 @@ def main(argv: list[str] | None = None) -> int:
             perception=FramePerceptionAnalyzer(subject_analyzer=subject_analyzer),
         )
         mask_provider = None
-        if args.subject_model:
-            from ultralytics import YOLO
+        if model is not None:
             from src.thumbnails.perception.ultralytics_subject_mask_provider import (
                 UltralyticsSubjectMaskProvider,
             )
 
-            mask_provider = UltralyticsSubjectMaskProvider(YOLO(str(args.subject_model)))
+            mask_provider = UltralyticsSubjectMaskProvider(model)
 
         orchestrator = ThumbnailOrchestrator(
             frame_discovery=discovery,
