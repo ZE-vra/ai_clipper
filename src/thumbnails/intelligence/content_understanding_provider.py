@@ -87,7 +87,7 @@ class GeminiContentUnderstandingProvider:
         self._generate_json = generate_json
 
     @classmethod
-    def from_env(cls, model: str = "gemini-3.8-flash") -> "GeminiContentUnderstandingProvider":
+    def from_env(cls, model: str = "gemini-3.5-flash") -> "GeminiContentUnderstandingProvider":
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError(
