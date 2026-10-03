@@ -27,9 +27,9 @@ class CompositionPlanner:
         *,
         canvas_width: int = 1080,
         canvas_height: int = 1920,
-        blur_radius: float = 32.0,
+        blur_radius: float = 60.0,
         background_brightness: float = 0.58,
-        foreground_scale: float = 1.0,
+        foreground_scale: float = 1.12,
     ) -> None:
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
