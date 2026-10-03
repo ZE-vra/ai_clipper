@@ -1031,7 +1031,10 @@ class PipelineOrchestrator:
                 candidates_dir=candidates_dir,
             )
             if (
-                result.status is ThumbnailResultStatus.SUCCESS
+                result.status in {
+                    ThumbnailResultStatus.SUCCESS,
+                    ThumbnailResultStatus.FALLBACK_SUCCESS,
+                }
                 and result.output_path
                 and Path(result.output_path).is_file()
             ):
