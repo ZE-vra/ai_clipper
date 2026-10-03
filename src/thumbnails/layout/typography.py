@@ -85,7 +85,8 @@ class TypographyPlannerConfig:
     weight: str = "bold"
     color: str = "#FFFFFF"
     stroke_color: str = "#000000"
-    stroke_width: int = 4
+    stroke_width: int = 6
+    accent_color: str = "#FFD400"
     base_font_size: int = 96
     minimum_font_size: int = 42
     maximum_font_size: int = 132
@@ -105,7 +106,7 @@ class TypographyPlannerConfig:
     def __post_init__(self) -> None:
         if not self.font_name.strip() or not self.weight.strip():
             raise ValueError("font_name and weight must not be blank.")
-        if not self.color.strip() or not self.stroke_color.strip():
+        if not self.color.strip() or not self.stroke_color.strip() or not self.accent_color.strip():
             raise ValueError("colors must not be blank.")
         if self.stroke_width < 0:
             raise ValueError("stroke_width must not be negative.")
@@ -269,7 +270,11 @@ class TypographyPlanner:
                                 font_size=size,
                                 weight=self.config.weight,
                                 alignment=alignment,
-                                color=self.config.color,
+                                color=(
+                                    self.config.accent_color
+                                    if block.role in {CopyRole.PAYOFF, CopyRole.ACCENT}
+                                    else self.config.color
+                                ),
                                 position=Point(
                                     self._anchor_x(bounds, alignment),
                                     (top + bottom) / 2,
