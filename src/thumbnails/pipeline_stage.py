@@ -110,8 +110,8 @@ class ThumbnailV2Stage:
             brief=brief,
             understanding=understanding,
             target=ThumbnailTarget(
-                target_id="youtube-16x9",
+                target_id="youtube-shorts-9x16",
                 platform="youtube",
-                size=Size(width=1280, height=720),
+                size=Size(width=1080, height=1920),
             ),
         )
