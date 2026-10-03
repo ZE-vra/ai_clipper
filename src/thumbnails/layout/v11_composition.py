@@ -189,9 +189,9 @@ class V11CompositionPlanner:
         # critical V1.1 change: the image is staged for the text instead of
         # simply cropped around the person.
         desired_x = {
-            "left": 0.32,
+            "left": 0.25,
             "center": 0.50,
-            "right": 0.68,
+            "right": 0.75,
         }[subject_side]
         desired_y = {
             "top": 0.68,
