@@ -41,12 +41,11 @@ class ThumbnailOrchestrator:
     Creative intent is produced before asset selection. Perception discovers
     the candidate pool, matching ranks assets per concept, and the existing
     deterministic composition/typography/renderer machinery executes the
-    selected source-frame plan.
+    selected source-frame plan, with ENHANCED_FRAME executed through the
+    renderer's deterministic image-treatment controls.
 
-    This slice deliberately supports only SOURCE_FRAME execution. Other
-    strategies
-    remain represented in the domain so later builders can be added without
-    changing the orchestration contract.
+    Subject cutouts and generative strategies remain unsupported until their
+    asset-building operations have real implementations.
     """
 
     def __init__(
@@ -155,10 +154,14 @@ class ThumbnailOrchestrator:
                         # the search; continue to other concepts and matches.
                         continue
 
-                    # The first executable slice is intentionally source-frame
-                    # only. Unsupported strategies remain candidates for later
-                    # builders rather than being silently faked here.
-                    if asset_plan.strategy is not VisualStrategy.SOURCE_FRAME:
+                    # Enhanced frames reuse the source asset but execute a
+                    # distinct deterministic treatment in the renderer.
+                    # Strategies that require new assets (for example subject
+                    # cutouts) remain unsupported until their builders exist.
+                    if asset_plan.strategy not in {
+                        VisualStrategy.SOURCE_FRAME,
+                        VisualStrategy.ENHANCED_FRAME,
+                    }:
                         continue
 
                     try:
@@ -184,17 +187,27 @@ class ThumbnailOrchestrator:
                             target=target,
                         )
 
+                        treatment = (
+                            VisualTreatmentPlan(
+                                contrast=1.14,
+                                saturation=1.12,
+                                sharpness=1.18,
+                                vignette=0.12,
+                            )
+                            if asset_plan.strategy is VisualStrategy.ENHANCED_FRAME
+                            else VisualTreatmentPlan(
+                                contrast=1.06,
+                                saturation=1.06,
+                                sharpness=1.04,
+                                vignette=0.08,
+                            )
+                        )
                         render_plan = ThumbnailRenderPlan(
                             canvas_width=target.size.width,
                             canvas_height=target.size.height,
                             composition=composition,
                             typography=typography,
-                            visual_treatment=VisualTreatmentPlan(
-                                contrast=1.06,
-                                saturation=1.06,
-                                sharpness=1.04,
-                                vignette=0.08,
-                            ),
+                            visual_treatment=treatment,
                         )
                     except (TypeError, ValueError, FileNotFoundError):
                         # One bad candidate must not destroy the remaining search
