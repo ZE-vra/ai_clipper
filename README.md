@@ -77,6 +77,16 @@ projects/<project_id>/thumbnails/clip_XX_thumbnail.jpg
 
 The main `python cli.py <source>` workflow generates thumbnails after per-clip packaging. V2 reuses the packaging's title, hook, thumbnail text, and content angle, then performs frame extraction, perception, composition, rendering, and evaluation locally. It does **not** call Gemini again for thumbnail understanding. Valid thumbnail files are checkpointed and reused on resume. Thumbnail failure does not invalidate an otherwise successful clip.
 
+## Regenerate a thumbnail without rerunning the pipeline
+
+After the main clipper has created the project's source-section and packaging checkpoints, regenerate just one Shorts thumbnail:
+
+```powershell
+python -m src.thumbnails.project_cli "path/to/the/original-video.mp4" --clip-id 1
+```
+
+Use the exact same local video path or YouTube URL used for the original run. Change `--clip-id` to select another clip. Optional flags include `--samples 15` for more sampled frames or `--output path/to/preview.jpg` to save a separate comparison image. By default, this replaces that clip's thumbnail checkpoint. The command loads the existing source section and packaging JSON directly; it does not run Whisper, Gemini, clip selection, packaging, or video rendering. It fails clearly if the required saved artifacts are missing rather than starting the full pipeline.
+
 ## Thumbnail V2 standalone tools
 
 The dedicated V2 CLI remains available for experimentation and for cases where you want to provide a custom JSON request or generate a brief from a transcript. These standalone modes are separate from the integrated main pipeline.
