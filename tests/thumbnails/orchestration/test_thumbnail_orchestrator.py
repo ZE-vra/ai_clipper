@@ -54,8 +54,13 @@ def _candidate(image_path: Path) -> FrameCandidate:
             ),
         ),
     )
+    # Candidate identities must be unique when multiple frames are discovered.
+    # Using a constant ID makes the orchestrator resolve both matches to the
+    # first candidate, hiding whether fallback to the valid frame works.
+    asset_id = f"frame-{image_path.stem}"
+    candidate_id = f"candidate-{image_path.stem}"
     asset = VisualAsset(
-        asset_id="frame-001",
+        asset_id=asset_id,
         provenance=AssetProvenance(
             kind=AssetProvenanceKind.SOURCE_FRAME,
             source_timestamps=(12.0,),
@@ -64,7 +69,7 @@ def _candidate(image_path: Path) -> FrameCandidate:
         source_timestamp=12.0,
     )
     return FrameCandidate(
-        candidate_id="candidate-001",
+        candidate_id=candidate_id,
         timestamp=12.0,
         asset=asset,
         perception=perception,
