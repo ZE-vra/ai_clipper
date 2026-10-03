@@ -328,6 +328,11 @@ class ThumbnailRenderer:
         candidates = [
             Path("C:/Windows/Fonts") / "arialbd.ttf",
             Path("C:/Windows/Fonts") / "arial.ttf",
+            Path("/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
         ]
 
         for path in candidates:
