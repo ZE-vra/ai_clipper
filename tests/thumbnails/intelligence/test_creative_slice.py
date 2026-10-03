@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from src.thumbnails.domain.assets import FrameCandidate, VisualAsset, AssetProvenance, AssetProvenanceKind
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentEntity, ContentEvent, ContentUnderstanding
-from src.thumbnails.domain.concepts import VisualStrategy
+from src.thumbnails.domain.concepts import VisualStrategy, ThumbnailConcept, CopyConcept, CopyBlock, CopyRole
 from src.thumbnails.intelligence.asset_matcher import AssetMatcher
 from src.thumbnails.intelligence.creative_director import RuleBasedCreativeDirector
 from src.thumbnails.intelligence.strategy_planner import StrategyPlanner
@@ -18,6 +18,30 @@ def _candidate(asset_id: str, score: float = 0.8) -> FrameCandidate:
             regions=(SimpleNamespace(strength=score),)
         ),
         subjects=SimpleNamespace(subjects=(object(),)),
+    )
+    asset = VisualAsset(
+        asset_id=asset_id,
+        provenance=AssetProvenance(
+            kind=AssetProvenanceKind.SOURCE_FRAME,
+        ),
+        path=str(Path(f"{asset_id}.jpg")),
+    )
+    return FrameCandidate(
+        candidate_id=f"candidate-{asset_id}",
+        timestamp=10.0,
+        asset=asset,
+        perception=perception,
+    )
+
+
+def _candidate_with_subjects(asset_id: str, subjects: list[any], score: float = 0.8) -> FrameCandidate:
+    perception = SimpleNamespace(
+        quality=SimpleNamespace(overall_quality=score),
+        crop=SimpleNamespace(score=score),
+        focal=SimpleNamespace(
+            regions=(SimpleNamespace(strength=score),)
+        ),
+        subjects=SimpleNamespace(subjects=tuple(subjects)),
     )
     asset = VisualAsset(
         asset_id=asset_id,
@@ -128,6 +152,43 @@ def test_asset_matcher_ranks_candidates_without_discarding_the_pool() -> None:
 
     assert len(matches) == 2
     assert matches[0].asset_id == "frame-b"
+
+
+def test_asset_matcher_ranks_candidate_with_matching_evidence_higher() -> None:
+    copy_concept = CopyConcept(
+        concept_id="test-copy",
+        blocks=(CopyBlock(text="test text", role=CopyRole.HOOK),),
+    )
+    concept = ThumbnailConcept(
+        concept_id="test-concept",
+        title="Test Concept",
+        visual_idea="Test visual idea",
+        curiosity_mechanism="test curiosity",
+        emotional_direction="test emotion",
+        copy=copy_concept,
+        required_visual_evidence=("luxury jet interior",),
+        preferred_entities=("private jet",),
+        candidate_strategies=(VisualStrategy.SOURCE_FRAME,),
+    )
+
+    # Candidate A has matching evidence
+    subject_a1 = SimpleNamespace(label="luxury jet interior")
+    subject_a2 = SimpleNamespace(entity_id="private jet")
+    candidate_a = _candidate_with_subjects("frame-a", [subject_a1, subject_a2], score=0.8)
+
+    # Candidate B has no matching evidence but same base score
+    subject_b = SimpleNamespace(label="unrelated")
+    candidate_b = _candidate_with_subjects("frame-b", [subject_b], score=0.8)
+
+    matches = AssetMatcher().match(
+        concept=concept,
+        candidates=(candidate_b, candidate_a),
+    )
+
+    assert len(matches) == 2
+    assert matches[0].asset_id == "frame-a"
+    assert matches[1].asset_id == "frame-b"
+    assert matches[0].suitability_score > matches[1].suitability_score
 
 
 def test_strategy_planner_creates_an_executable_source_plan() -> None:
