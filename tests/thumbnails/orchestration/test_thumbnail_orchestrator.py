@@ -266,3 +266,80 @@ def test_v2_orchestrator_skips_unsupported_concept_and_uses_next(
     assert result.status.value == "success"
     assert result.output_path == str(output)
     assert output.is_file()
+
+
+
+class EnhancedFrameConceptDirector:
+    def create(self, *, brief, understanding, max_concepts):
+        concepts = RuleBasedCreativeDirector().create(
+            brief=brief,
+            understanding=understanding,
+            max_concepts=max_concepts,
+        )
+        if not concepts:
+            return concepts
+        return (
+            replace(
+                concepts[0],
+                visual_strategy=VisualStrategy.ENHANCED_FRAME,
+            ),
+            *concepts[1:],
+        )
+
+
+class CapturingRenderer:
+    def __init__(self) -> None:
+        self.plan = None
+
+    def render(self, *, plan, output_path: str | Path) -> Path:
+        self.plan = plan
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (plan.canvas_width, plan.canvas_height), (30, 80, 120)).save(output)
+        return output
+
+
+def test_v2_orchestrator_executes_enhanced_frame_strategy(tmp_path: Path) -> None:
+    source_video = tmp_path / "source.mp4"
+    source_video.write_bytes(b"placeholder")
+
+    frame = tmp_path / "frame.jpg"
+    Image.new("RGB", (1920, 1080), (30, 80, 120)).save(frame)
+    renderer = CapturingRenderer()
+    orchestrator = ThumbnailOrchestrator(
+        frame_discovery=FakeFrameDiscovery(_candidate(frame)),
+        creative_director=EnhancedFrameConceptDirector(),
+        renderer=renderer,
+        max_concepts=1,
+    )
+    output = tmp_path / "enhanced-thumbnail.jpg"
+
+    result = orchestrator.generate(
+        source_video_path=source_video,
+        output_path=output,
+        candidates_dir=tmp_path / "candidates",
+        brief=ThumbnailBrief(
+            core_hook="$2M CARPET ON A PLANE?!",
+            subject="private jet",
+            promise="A $2 million carpet is revealed.",
+            curiosity_angle="Why is the carpet worth $2 million?",
+            emotional_direction="surprise",
+            important_objects=("carpet",),
+            visual_evidence=("luxury jet interior",),
+        ),
+        understanding=ContentUnderstanding(
+            entities=(),
+            events=(),
+            confidence=1.0,
+        ),
+        target=_target(),
+    )
+
+    assert result.status.value == "success"
+    assert result.selected_attempt_id.endswith("enhanced_frame")
+    assert renderer.plan is not None
+    assert renderer.plan.visual_treatment.contrast == 1.14
+    assert renderer.plan.visual_treatment.saturation == 1.12
+    assert renderer.plan.visual_treatment.sharpness == 1.18
+    assert renderer.plan.visual_treatment.vignette == 0.12
+    assert output.is_file()
