@@ -201,16 +201,25 @@ class V11CompositionPlanner:
         subject_center_x = center_x
         subject_center_y = (subject.top + subject.bottom) / 2.0
         desired_left = subject_center_x - desired_x * crop_width
-        min_left = max(
-            0.0,
-            subject.right
-            + self.config.subject_clearance
-            - crop_width,
-        )
-        max_left = min(
-            1.0 - crop_width,
-            subject.left - self.config.subject_clearance,
-        )
+        # Side staging is only valid when the complete subject remains in
+        # the crop. Prefer the requested side while preserving the subject
+        # bounds; requiring an extra clearance on both sides can make a
+        # feasible opposing text field mathematically impossible near an
+        # edge. Centered layouts retain the configured clearance.
+        if subject_side == "center":
+            min_left = max(
+                0.0,
+                subject.right
+                + self.config.subject_clearance
+                - crop_width,
+            )
+            max_left = min(
+                1.0 - crop_width,
+                subject.left - self.config.subject_clearance,
+            )
+        else:
+            min_left = max(0.0, subject.right - crop_width)
+            max_left = min(1.0 - crop_width, subject.left)
 
         if min_left <= max_left:
             left = min(
