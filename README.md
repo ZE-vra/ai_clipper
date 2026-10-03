@@ -18,7 +18,8 @@ Given a video source, the pipeline can:
 8. Convert clips into vertical social-video format
 9. Generate and burn captions into the video
 10. Generate publishing metadata using Gemini
-11. Persist the results for resumable execution
+11. Generate a V2 thumbnail from the existing per-clip packaging, using local frame analysis and rendering
+12. Persist clips, packaging, and thumbnail checkpoints for resumable execution
 
 The goal is not simply to generate clips, but to build a reliable pipeline that can recover from failures without unnecessarily repeating expensive work.
 
@@ -66,10 +67,19 @@ Final Vertical Clip
 GeminiPackager
  ↓
 Packaging JSON
+ ↓
+ThumbnailV2Stage (reuses packaging; no additional Gemini request)
+ ↓
+Local frame discovery / composition / rendering
+ ↓
+projects/<project_id>/thumbnails/clip_XX_thumbnail.jpg
+```
 
-## Thumbnail V2 (experimental)
+The main `python cli.py <source>` workflow generates thumbnails after per-clip packaging. V2 reuses the packaging's title, hook, thumbnail text, and content angle, then performs frame extraction, perception, composition, rendering, and evaluation locally. It does **not** call Gemini again for thumbnail understanding. Valid thumbnail files are checkpointed and reused on resume. Thumbnail failure does not invalidate an otherwise successful clip.
 
-Thumbnail V2 is available through a separate CLI entry point so it does not change the existing clip-generation workflow. It currently expects a **local video** and an explicit JSON request containing a creative `brief` and structured `understanding`; it does not automatically generate those inputs.
+## Thumbnail V2 standalone tools
+
+The dedicated V2 CLI remains available for experimentation and for cases where you want to provide a custom JSON request or generate a brief from a transcript. These standalone modes are separate from the integrated main pipeline.
 
 ### Run
 
@@ -109,4 +119,4 @@ python -m src.thumbnails.cli path/to/input.mp4 --auto-transcribe --output output
 
 This requires OpenAI Whisper, FFmpeg, and `GEMINI_API_KEY`. The default Whisper model is `base`; choose another installed/downloadable Whisper model with `--whisper-model small`, and optionally set `--language en`. Whisper may download its model weights on first use. The CLI does not download the optional YOLO subject-segmentation checkpoint.
 
-This entry point is experimental and does not replace the existing clipper CLI.
+This standalone entry point is intended for manual V2 experiments; the main clipper CLI already runs V2 using saved packaging so it does not repeat the content-understanding API request.
