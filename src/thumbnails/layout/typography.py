@@ -149,7 +149,8 @@ class TypographyPlanner:
         if not blocks:
             raise ValueError("copy must contain at least one block.")
         is_portrait_shorts = (
-            target.size.height > target.size.width
+            target.target_id == "youtube-shorts-9x16"
+            and target.size.height > target.size.width
             and target.size.width / target.size.height <= 0.75
         )
         if is_portrait_shorts:
