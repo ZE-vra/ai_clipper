@@ -47,5 +47,7 @@ def test_v2_stage_uses_packaging_and_does_not_require_a_model_provider(tmp_path:
     assert orchestrator.kwargs["brief"].promise == "The Unexpected Result"
     assert orchestrator.kwargs["understanding"].entities == ()
     assert orchestrator.kwargs["understanding"].events == ()
-    assert orchestrator.kwargs["target"].size.width == 1280
-    assert orchestrator.kwargs["target"].size.height == 720
+    assert orchestrator.kwargs["target"].target_id == "youtube-shorts-9x16"
+    assert orchestrator.kwargs["target"].size.width == 1080
+    assert orchestrator.kwargs["target"].size.height == 1920
+    assert orchestrator.kwargs["target"].size.height / orchestrator.kwargs["target"].size.width == 16 / 9
