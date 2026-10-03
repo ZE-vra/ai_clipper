@@ -27,7 +27,22 @@ def thumbnail_inputs_from_packaging(
     thumbnail_text = packaging.thumbnail_text.strip()
     content_angle = packaging.content_angle.strip()
 
-    core_hook = thumbnail_text or hook or title
+    copy_candidates = (thumbnail_text, hook, title)
+    concise_copy = next(
+        (
+            value
+            for value in copy_candidates
+            if value
+            and len(value) <= 28
+            and 2 <= len(value.split()) <= 5
+        ),
+        None,
+    )
+    core_hook = concise_copy or min(
+        (value for value in copy_candidates if value),
+        key=len,
+        default="",
+    )
     subject = content_angle or title or hook
     promise = title or content_angle or hook
     curiosity_angle = hook or content_angle or title
