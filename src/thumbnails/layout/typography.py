@@ -196,7 +196,8 @@ class TypographyPlanner:
                 size = self._font_size(block, scale)
                 # Reserve horizontal space for the renderer's text stroke;
                 # Pillow includes the stroke in its rendered text bounds.
-                text_width = width - (2 * self.config.stroke_width)
+                # Leave a small extra margin for integer pixel-bound rounding in the renderer.
+                text_width = width - (2 * self.config.stroke_width) - 2
                 if text_width <= 0:
                     fits = False
                     break
@@ -213,7 +214,7 @@ class TypographyPlanner:
                     weight=self.config.weight,
                 )
 
-                if measured.width + (2 * self.config.stroke_width) > width + 0.5:
+                if measured.width + (2 * self.config.stroke_width) > width - 1.0:
                     fits = False
                     break
 
