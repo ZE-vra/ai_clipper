@@ -340,3 +340,20 @@ def test_renderer_composites_foreground_asset_above_background(tmp_path: Path) -
         corner = image.getpixel((50, 50))
         assert center[2] > center[0]  # foreground subject is visible
         assert corner[0] > corner[2]  # transparent pixels preserve background
+
+
+def test_portrait_editorial_gradient_darkens_lower_copy_area() -> None:
+    source = Image.new("RGB", (108, 192), (180, 180, 180))
+
+    result = PillowThumbnailRenderer._apply_editorial_gradient(source)
+
+    assert result.getpixel((54, 20))[0] > result.getpixel((54, 180))[0]
+    assert result.getpixel((54, 20)) == (180, 180, 180)
+
+
+def test_landscape_editorial_gradient_leaves_image_unchanged() -> None:
+    source = Image.new("RGB", (192, 108), (180, 180, 180))
+
+    result = PillowThumbnailRenderer._apply_editorial_gradient(source)
+
+    assert result.getpixel((96, 90)) == (180, 180, 180)
