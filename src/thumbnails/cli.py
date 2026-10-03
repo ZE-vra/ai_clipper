@@ -13,6 +13,7 @@ from src.thumbnails.domain.content import ContentEntity, ContentEvent, ContentUn
 from src.thumbnails.domain.geometry import BoundingBox, Region, Size
 from src.thumbnails.domain.target import ThumbnailTarget
 from src.thumbnails.intelligence.content_understanding_provider import GeminiContentUnderstandingProvider
+from src.thumbnails.intelligence.whisper_transcript_provider import WhisperTranscriptProvider
 from src.thumbnails.frame_extractor import FFmpegFrameExtractor
 from src.thumbnails.orchestration.thumbnail_orchestrator import ThumbnailOrchestrator
 from src.thumbnails.perception.frame_discovery import FrameDiscovery
@@ -141,6 +142,9 @@ def build_parser() -> argparse.ArgumentParser:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--input", type=Path, help="JSON file containing brief and content understanding.")
     source.add_argument("--transcript", type=Path, help="Transcript text file; Gemini generates the brief and content understanding.")
+    source.add_argument("--auto-transcribe", action="store_true", help="Transcribe the source video locally with Whisper, then use Gemini to generate the brief.")
+    parser.add_argument("--whisper-model", default="base", help="Local Whisper model for --auto-transcribe (default: base).")
+    parser.add_argument("--language", help="Optional language code for Whisper, e.g. en.")
     parser.add_argument("--output", required=True, type=Path, help="Destination image path.")
     parser.add_argument("--candidates-dir", type=Path, help="Directory for sampled frames and derived assets.")
     parser.add_argument(
@@ -164,9 +168,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.input:
             brief, understanding, target = _load_request(args.input)
         else:
-            if not args.transcript.is_file():
-                raise FileNotFoundError(f"Transcript file does not exist: {args.transcript}")
-            transcript = args.transcript.read_text(encoding="utf-8")
+            if args.auto_transcribe:
+                transcript = WhisperTranscriptProvider(
+                    model_name=args.whisper_model,
+                    language=args.language,
+                ).transcribe(args.source_video)
+            else:
+                if not args.transcript.is_file():
+                    raise FileNotFoundError(f"Transcript file does not exist: {args.transcript}")
+                transcript = args.transcript.read_text(encoding="utf-8")
             brief, understanding = GeminiContentUnderstandingProvider.from_env().understand(transcript)
             target = ThumbnailTarget(
                 target_id="youtube-16x9",
