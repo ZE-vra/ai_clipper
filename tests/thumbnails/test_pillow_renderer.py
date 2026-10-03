@@ -298,3 +298,45 @@ def test_renderer_applies_visual_treatment(
     with Image.open(output) as image:
         assert image.size == (1080, 1920)
         assert image.mode == "RGB"
+
+
+def test_renderer_composites_foreground_asset_above_background(tmp_path: Path) -> None:
+    background_path = tmp_path / "background.png"
+    foreground_path = tmp_path / "foreground.png"
+    output = tmp_path / "thumbnail.jpg"
+    Image.new("RGB", (1600, 900), (220, 20, 20)).save(background_path)
+    foreground_image = Image.new("RGBA", (1600, 900), (0, 0, 0, 0))
+    foreground_pixels = foreground_image.load()
+    for y in range(100, 800):
+        for x in range(600, 1000):
+            foreground_pixels[x, y] = (20, 40, 230, 255)
+    foreground_image.save(foreground_path)
+
+    background = _make_asset(background_path)
+    foreground = VisualAsset(
+        asset_id="subject-cutout",
+        provenance=AssetProvenance.SOURCE_FRAME,
+        path=str(foreground_path),
+    )
+    base_plan = _make_plan(background)
+    plan = ThumbnailRenderPlan(
+        canvas_width=base_plan.canvas_width,
+        canvas_height=base_plan.canvas_height,
+        composition=base_plan.composition,
+        typography=TypographyPlan(blocks=()),
+        visual_treatment=VisualTreatmentPlan(),
+        foreground_asset_id=foreground.asset_id,
+    )
+    renderer = PillowThumbnailRenderer(
+        asset_resolver=InMemoryVisualAssetResolver(
+            {background.asset_id: background, foreground.asset_id: foreground}
+        )
+    )
+
+    renderer.render(plan=plan, output_path=output)
+
+    with Image.open(output) as image:
+        center = image.getpixel((540, 960))
+        corner = image.getpixel((50, 50))
+        assert center[2] > center[0]  # foreground subject is visible
+        assert corner[0] > corner[2]  # transparent pixels preserve background

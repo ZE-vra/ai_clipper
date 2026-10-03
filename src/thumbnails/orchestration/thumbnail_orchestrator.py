@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Protocol
 
 from src.thumbnails.domain.concepts import VisualStrategy
+from src.thumbnails.asset_builders.subject_cutout import MaskedSubjectCutoutBuilder
 from src.thumbnails.evaluation.deterministic import DeterministicThumbnailEvaluator
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
@@ -19,6 +20,8 @@ from src.thumbnails.layout.typography import TypographyPlanner
 from src.thumbnails.perception.frame_discovery import FrameDiscovery
 from src.thumbnails.perception.frame_selector import SelectedFrame
 from src.thumbnails.perception.frame_candidate_scorer import FrameCandidateScorer
+from src.thumbnails.perception.subject_mask_provider import SubjectMaskProvider
+from src.thumbnails.perception.subjects import SubjectKind
 from src.thumbnails.rendering.pillow_renderer import (
     InMemoryVisualAssetResolver,
     PillowThumbnailRenderer,
@@ -44,8 +47,9 @@ class ThumbnailOrchestrator:
     selected source-frame plan, with ENHANCED_FRAME executed through the
     renderer's deterministic image-treatment controls.
 
-    Subject cutouts and generative strategies remain unsupported until their
-    asset-building operations have real implementations.
+    Subject cutouts execute when an explicit segmentation mask provider is
+    injected. Generative strategies remain unsupported until their asset
+    builders exist.
     """
 
     def __init__(
@@ -60,6 +64,8 @@ class ThumbnailOrchestrator:
         layout_negotiator: LayoutNegotiator | None = None,
         renderer: ThumbnailRenderer | None = None,
         evaluator: DeterministicThumbnailEvaluator | None = None,
+        subject_mask_provider: SubjectMaskProvider | None = None,
+        cutout_builder: MaskedSubjectCutoutBuilder | None = None,
         max_concepts: int = 3,
         max_matches_per_concept: int = 2,
     ) -> None:
@@ -77,6 +83,8 @@ class ThumbnailOrchestrator:
         self.layout_negotiator = layout_negotiator or LayoutNegotiator()
         self.renderer = renderer
         self.evaluator = evaluator or DeterministicThumbnailEvaluator()
+        self.subject_mask_provider = subject_mask_provider
+        self.cutout_builder = cutout_builder or MaskedSubjectCutoutBuilder()
         self.max_concepts = max_concepts
         self.max_matches_per_concept = max_matches_per_concept
 
@@ -154,15 +162,47 @@ class ThumbnailOrchestrator:
                         # the search; continue to other concepts and matches.
                         continue
 
-                    # Enhanced frames reuse the source asset but execute a
-                    # distinct deterministic treatment in the renderer.
-                    # Strategies that require new assets (for example subject
-                    # cutouts) remain unsupported until their builders exist.
+                    # Source and enhanced frames reuse the discovered asset.
+                    # Subject cutouts require an explicitly configured mask
+                    # provider; never download model weights implicitly.
                     if asset_plan.strategy not in {
                         VisualStrategy.SOURCE_FRAME,
                         VisualStrategy.ENHANCED_FRAME,
+                        VisualStrategy.SUBJECT_CUTOUT,
                     }:
                         continue
+
+                    foreground_asset_id: str | None = None
+                    if asset_plan.strategy is VisualStrategy.SUBJECT_CUTOUT:
+                        subject = candidate.perception.subjects.primary_subject
+                        if (
+                            self.subject_mask_provider is None
+                            or subject is None
+                            or getattr(subject, "kind", None) is not SubjectKind.PERSON
+                            or getattr(subject, "bounds", None) is None
+                        ):
+                            continue
+
+                        derived_dir = Path(candidates_dir) / "derived_assets"
+                        mask_path = derived_dir / f"{candidate.asset.asset_id}-subject-mask.png"
+                        cutout_path = derived_dir / f"{candidate.asset.asset_id}-subject-cutout.png"
+                        try:
+                            self.subject_mask_provider.create_mask(
+                                image_path=candidate.asset.path,
+                                subject_bounds=subject.bounds,
+                                output_path=mask_path,
+                            )
+                            cutout = self.cutout_builder.build(
+                                source_asset=candidate.asset,
+                                mask_path=mask_path,
+                                output_path=cutout_path,
+                            )
+                        except Exception:
+                            # Segmentation failure invalidates this plan only;
+                            # other concepts and candidate frames may still work.
+                            continue
+                        assets[cutout.asset_id] = cutout
+                        foreground_asset_id = cutout.asset_id
 
                     try:
                         selected = SelectedFrame(
@@ -208,6 +248,7 @@ class ThumbnailOrchestrator:
                             composition=composition,
                             typography=typography,
                             visual_treatment=treatment,
+                            foreground_asset_id=foreground_asset_id,
                         )
                     except (TypeError, ValueError, FileNotFoundError):
                         # One bad candidate must not destroy the remaining search

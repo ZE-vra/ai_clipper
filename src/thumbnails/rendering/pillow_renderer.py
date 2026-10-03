@@ -52,6 +52,7 @@ class PillowThumbnailRenderer:
         canvas = self._render_visuals(plan)
         canvas = self._apply_visual_treatment(canvas, plan)
         self._render_typography(canvas, plan)
+        canvas = self._render_foreground(canvas, plan)
 
         canvas.save(
             output,
@@ -106,6 +107,32 @@ class PillowThumbnailRenderer:
             canvas = image
 
         return canvas
+
+    def _render_foreground(
+        self,
+        canvas: Image.Image,
+        plan: ThumbnailRenderPlan,
+    ) -> Image.Image:
+        """Composite a derived foreground subject above the planned text."""
+        if plan.foreground_asset_id is None:
+            return canvas
+
+        placement = plan.composition.visual_placements[0]
+        asset = self._asset_resolver.resolve(plan.foreground_asset_id)
+        foreground = self._open_asset(asset.path).convert("RGBA")
+
+        if placement.crop_bounds is not None:
+            foreground = self._crop_normalized(
+                foreground,
+                placement.crop_bounds,
+            )
+
+        foreground = self._cover(
+            foreground,
+            plan.canvas_width,
+            plan.canvas_height,
+        )
+        return Image.alpha_composite(canvas.convert("RGBA"), foreground).convert("RGB")
 
     @staticmethod
     def _open_asset(path: str | Path) -> Image.Image:

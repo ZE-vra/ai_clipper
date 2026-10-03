@@ -2,7 +2,7 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from src.thumbnails.domain.assets import (
     AssetProvenance,
@@ -13,6 +13,7 @@ from src.thumbnails.domain.assets import (
 from src.thumbnails.domain.brief import ThumbnailBrief
 from src.thumbnails.domain.content import ContentUnderstanding
 from src.thumbnails.domain.concepts import VisualStrategy
+from src.thumbnails.perception.subjects import SubjectKind
 from src.thumbnails.domain.geometry import BoundingBox, Point, Region, Size
 from src.thumbnails.domain.target import ThumbnailTarget
 from src.thumbnails.intelligence.creative_director import RuleBasedCreativeDirector
@@ -343,3 +344,95 @@ def test_v2_orchestrator_executes_enhanced_frame_strategy(tmp_path: Path) -> Non
     assert renderer.plan.visual_treatment.sharpness == 1.18
     assert renderer.plan.visual_treatment.vignette == 0.12
     assert output.is_file()
+
+
+class SubjectCutoutConceptDirector:
+    def create(self, *, brief, understanding, max_concepts):
+        concepts = RuleBasedCreativeDirector().create(
+            brief=brief,
+            understanding=understanding,
+            max_concepts=max_concepts,
+        )
+        if not concepts:
+            return concepts
+        return (
+            replace(
+                concepts[0],
+                visual_strategy=VisualStrategy.SUBJECT_CUTOUT,
+            ),
+            *concepts[1:],
+        )
+
+
+class FakeSubjectMaskProvider:
+    def create_mask(self, *, image_path, subject_bounds, output_path):
+        with Image.open(image_path) as source:
+            width, height = source.size
+        mask = Image.new("L", (width, height), 0)
+        ImageDraw.Draw(mask).rectangle(
+            (
+                round(subject_bounds.left * width),
+                round(subject_bounds.top * height),
+                round(subject_bounds.right * width),
+                round(subject_bounds.bottom * height),
+            ),
+            fill=255,
+        )
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        mask.save(output, format="PNG")
+        return output
+
+
+def test_v2_orchestrator_executes_subject_cutout_strategy(tmp_path: Path) -> None:
+    source_video = tmp_path / "source.mp4"
+    source_video.write_bytes(b"placeholder")
+
+    frame = tmp_path / "frame.jpg"
+    Image.new("RGB", (1920, 1080), (30, 80, 120)).save(frame)
+    candidate = _candidate(frame)
+    subject = SimpleNamespace(
+        kind=SubjectKind.PERSON,
+        bounds=BoundingBox(left=0.35, top=0.08, right=0.68, bottom=0.95),
+        focal_point=Point(x=0.52, y=0.5),
+        prominence=0.9,
+    )
+    candidate.perception.subjects = SimpleNamespace(
+        subjects=(subject,),
+        primary_subject=subject,
+    )
+
+    orchestrator = ThumbnailOrchestrator(
+        frame_discovery=FakeFrameDiscovery(candidate),
+        creative_director=SubjectCutoutConceptDirector(),
+        subject_mask_provider=FakeSubjectMaskProvider(),
+        max_concepts=1,
+    )
+    output = tmp_path / "cutout-thumbnail.jpg"
+
+    result = orchestrator.generate(
+        source_video_path=source_video,
+        output_path=output,
+        candidates_dir=tmp_path / "candidates",
+        brief=ThumbnailBrief(
+            core_hook="$2M CARPET ON A PLANE?!",
+            subject="private jet",
+            promise="A $2 million carpet is revealed.",
+            curiosity_angle="Why is the carpet worth $2 million?",
+            emotional_direction="surprise",
+            important_objects=("carpet",),
+            visual_evidence=("luxury jet interior",),
+        ),
+        understanding=ContentUnderstanding(
+            entities=(),
+            events=(),
+            confidence=1.0,
+        ),
+        target=_target(),
+    )
+
+    assert result.status.value == "success"
+    assert result.selected_attempt_id.endswith("subject_cutout")
+    assert output.is_file()
+    assert (tmp_path / "candidates" / "derived_assets" / "frame-frame-subject-mask.png").is_file()
+    assert (tmp_path / "candidates" / "derived_assets" / "frame-frame-subject-cutout.png").is_file()
