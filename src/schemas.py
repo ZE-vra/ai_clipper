@@ -85,6 +85,10 @@ class CandidateEvaluation:
     score: float  # 0.0 to 10.0 scale
     reason: str
     suggested_title: Optional[str] = None
+    # Gemini may refine the candidate to exact transcript segment boundaries.
+    # Optional for backward compatibility with existing evaluation manifests.
+    start_segment_id: Optional[int] = None
+    end_segment_id: Optional[int] = None
 
 
 @dataclass
