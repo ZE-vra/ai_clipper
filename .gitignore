@@ -1,9 +1,31 @@
+# Python
 .venv/
+venv/
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Generated projects and outputs
 projects/
 output/
+*.log
 
+# Local tooling
 .vscode/
+.idea/
+
+# Local models and media/debug artifacts
+*.pt
+debug/
+test_audio.mp3
+test_audio_from_clip.wav
+test_clip.mp4
+test_renderer_clip.mp4
+test_renderer_clip_2.mp4
