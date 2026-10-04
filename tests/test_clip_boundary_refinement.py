@@ -76,7 +76,7 @@ def _manifests(start_segment_id=None, end_segment_id=None):
 def test_planner_uses_ai_refined_boundaries():
     candidate_manifest, evaluation_manifest = _manifests(
         start_segment_id=1,
-        end_segment_id=3,
+        end_segment_id=2,
     )
 
     result = ClipPlanner().plan(
@@ -87,8 +87,8 @@ def test_planner_uses_ai_refined_boundaries():
     decision = result.selected_clips[0]
 
     assert decision.snapped_start_time == 100.0
-    assert decision.snapped_end_time == 188.0
-    assert decision.duration == 88.0
+    assert decision.snapped_end_time == 145.0
+    assert decision.duration == 45.0
 
 
 def test_planner_keeps_legacy_candidate_boundaries_when_refinement_missing():
