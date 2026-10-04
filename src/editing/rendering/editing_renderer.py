@@ -6,6 +6,7 @@ from tempfile import NamedTemporaryFile
 
 from src.editing.models import EditingPlan
 from src.exceptions import ClipperError
+from src.rendering.audio_enhancement import audio_enhancement_filter
 
 
 class EditingRenderingError(ClipperError):
@@ -235,6 +236,8 @@ class EditingRenderer:
             "[final]",
             "-map",
             "0:a:0",
+            "-af",
+            audio_enhancement_filter(),
             "-c:v",
             render.video_codec,
             "-preset",
