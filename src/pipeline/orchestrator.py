@@ -343,7 +343,25 @@ class PipelineOrchestrator:
                 "Evaluation checkpoint found. Loading..."
             )
 
-            return load_evaluation_manifest(
+            evaluation_manifest = load_evaluation_manifest(
+                workspace
+            )
+
+            # Boundary refinement was added after older evaluation artifacts
+            # were created. Force one Gemini pass when the checkpoint lacks
+            # the new segment-level boundaries.
+            if all(
+                evaluation.start_segment_id is not None
+                and evaluation.end_segment_id is not None
+                for evaluation in evaluation_manifest.evaluations
+            ):
+                return evaluation_manifest
+
+            print(
+                "Evaluation checkpoint uses the legacy boundary format. "
+                "Regenerating with AI boundary refinement..."
+            )
+            self._invalidate_from_clip_plan_downstream(
                 workspace
             )
 
