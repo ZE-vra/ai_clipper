@@ -28,12 +28,12 @@ def create_editing_plan(
             ),
             background=BackgroundPlan(
                 source="same_video",
-                blur_radius=32.0,
+                blur_radius=48.0,
                 brightness=0.58,
             ),
             foreground=ForegroundPlan(
                 preserve_aspect_ratio=True,
-                scale=1.0,
+                scale=1.12,
             ),
         ),
         captions=CaptionPlan(
@@ -86,9 +86,10 @@ def test_renderer_builds_vertical_composition_command(tmp_path):
     ]
 
     assert "split=2" in filter_complex
-    assert "scale=1080:1920" in filter_complex
+    assert "scale=1210:2150" in filter_complex
     assert "crop=1080:1920" in filter_complex
-    assert "boxblur=32.0:1" in filter_complex
+    assert "crop=1080:1920" in filter_complex
+    assert "boxblur=48.0:2" in filter_complex
     assert "eq=brightness=-0.42000000000000004" in filter_complex
     assert "overlay=(W-w)/2:(H-h)/2" in filter_complex
     assert "subtitles=" in filter_complex

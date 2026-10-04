@@ -65,6 +65,8 @@ def test_provider_builds_validated_v2_inputs_from_transcript():
     assert "2–5 words" in captured[0]
     assert "at most 28 characters" in captured[0]
     assert "not full sentences or explanations" in captured[0]
+    assert "strong curiosity gap" in captured[0]
+    assert "generic hype" in captured[0]
     assert "The speaker describes an experiment." in captured[0]
 
 

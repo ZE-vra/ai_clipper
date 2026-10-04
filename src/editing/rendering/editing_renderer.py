@@ -174,14 +174,16 @@ class EditingRenderer:
                 f"scale={canvas.width}:{canvas.height}:"
                 "force_original_aspect_ratio=increase,"
                 f"crop={canvas.width}:{canvas.height},"
-                f"boxblur={background.blur_radius}:1,"
+                f"boxblur={background.blur_radius}:2,"
                 f"eq=brightness={background.brightness - 1.0}"
                 "[background_processed]"
             ),
             (
                 "[foreground]"
-                f"scale={canvas.width}:{canvas.height}:"
-                "force_original_aspect_ratio=decrease"
+                f"scale={round(canvas.width * plan.composition.foreground.scale)}:"
+                f"{round(canvas.height * plan.composition.foreground.scale)}:"
+                "force_original_aspect_ratio=decrease,"
+                f"crop={canvas.width}:{canvas.height}"
                 "[foreground_scaled]"
             ),
             (
