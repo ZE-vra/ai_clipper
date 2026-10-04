@@ -68,8 +68,10 @@ class ClipPlanner:
             if candidate is None:
                 continue
 
-            start = candidate.start_time
-            end = candidate.end_time
+            start, end = self._resolve_boundaries(
+                candidate,
+                evaluation,
+            )
             duration = end - start
 
             if duration < self.min_duration:
@@ -105,6 +107,41 @@ class ClipPlanner:
         return ClipManifest(
             source=candidate_manifest.source,
             selected_clips=selected,
+        )
+
+    @staticmethod
+    def _resolve_boundaries(
+        candidate,
+        evaluation,
+    ) -> tuple[float, float]:
+        """Use Gemini's segment boundaries when available and valid."""
+        if (
+            evaluation.start_segment_id is None
+            or evaluation.end_segment_id is None
+        ):
+            return candidate.start_time, candidate.end_time
+
+        segments_by_id = {
+            segment.id: segment
+            for segment in candidate.segments
+        }
+
+        start_segment = segments_by_id.get(
+            evaluation.start_segment_id
+        )
+        end_segment = segments_by_id.get(
+            evaluation.end_segment_id
+        )
+
+        if start_segment is None or end_segment is None:
+            return candidate.start_time, candidate.end_time
+
+        if end_segment.end <= start_segment.start:
+            return candidate.start_time, candidate.end_time
+
+        return (
+            start_segment.start,
+            end_segment.end,
         )
 
     def _overlaps_existing(
