@@ -298,6 +298,16 @@ def load_evaluation_manifest(
                 suggested_title=item.get(
                     "suggested_title"
                 ),
+                start_segment_id=(
+                    int(item["start_segment_id"])
+                    if item.get("start_segment_id") is not None
+                    else None
+                ),
+                end_segment_id=(
+                    int(item["end_segment_id"])
+                    if item.get("end_segment_id") is not None
+                    else None
+                ),
             )
         )
 
