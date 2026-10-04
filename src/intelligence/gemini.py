@@ -132,7 +132,15 @@ class GeminiDirector(BaseAIDirector):
             {
                 "candidate_id": candidate.candidate_id,
                 "duration_seconds": round(candidate.duration, 1),
-                "transcript": candidate.transcript_text,
+                "segments": [
+                    {
+                        "segment_id": segment.id,
+                        "start": round(segment.start, 3),
+                        "end": round(segment.end, 3),
+                        "text": segment.text,
+                    }
+                    for segment in candidate.segments
+                ],
             }
             for candidate in candidates_batch
         ]
@@ -147,7 +155,9 @@ A strong candidate should:
 
 1. Make sense on its own.
 2. Have a clear beginning and satisfying payoff.
-3. Contain something worth watching, such as:
+3. End immediately after the meaningful payoff or completed thought.
+4. Avoid carrying dead air, setup, repetition, or post-payoff material.
+5. Contain something worth watching, such as:
    - humor
    - surprise
    - emotion
@@ -182,6 +192,17 @@ Each object must contain:
 - "reason": short 1-2 sentence explanation
 - "suggested_title": string containing a concise 3-6 word title,
   or null if no useful title can be suggested
+- "start_segment_id": integer ID of the first segment to include
+- "end_segment_id": integer ID of the last segment to include
+
+Boundary rules:
+- Both segment IDs MUST come from the candidate's supplied segments.
+- Start at the earliest segment needed to understand the moment.
+- End at the first segment that completes the payoff, answer, reveal,
+  punchline, or meaningful thought.
+- Do NOT keep extra material after the payoff.
+- Do NOT cut off the payoff mid-sentence.
+- Do NOT choose boundaries based on a preferred clip length.
 """
 
         raw_json = self._call_gemini(prompt)
@@ -208,12 +229,67 @@ Each object must contain:
                     score=float(item["score"]),
                     reason=str(item.get("reason", "")),
                     suggested_title=item.get("suggested_title"),
+                    start_segment_id=(
+                        int(item["start_segment_id"])
+                        if item.get("start_segment_id") is not None
+                        else None
+                    ),
+                    end_segment_id=(
+                        int(item["end_segment_id"])
+                        if item.get("end_segment_id") is not None
+                        else None
+                    ),
                 )
 
                 if not 0.0 <= evaluation.score <= 10.0:
                     raise ValueError(
                         f"Score outside valid range: {evaluation.score}"
                     )
+
+                valid_segment_ids = {
+                    segment.id
+                    for candidate in candidates_batch
+                    if candidate.candidate_id == evaluation.candidate_id
+                    for segment in candidate.segments
+                }
+
+                if (
+                    evaluation.start_segment_id is not None
+                    and evaluation.start_segment_id not in valid_segment_ids
+                ):
+                    raise ValueError(
+                        "Gemini returned an invalid start_segment_id."
+                    )
+
+                if (
+                    evaluation.end_segment_id is not None
+                    and evaluation.end_segment_id not in valid_segment_ids
+                ):
+                    raise ValueError(
+                        "Gemini returned an invalid end_segment_id."
+                    )
+
+                if (
+                    evaluation.start_segment_id is not None
+                    and evaluation.end_segment_id is not None
+                ):
+                    candidate_for_evaluation = next(
+                        candidate
+                        for candidate in candidates_batch
+                        if candidate.candidate_id == evaluation.candidate_id
+                    )
+                    segment_positions = {
+                        segment.id: index
+                        for index, segment
+                        in enumerate(candidate_for_evaluation.segments)
+                    }
+                    if (
+                        segment_positions[evaluation.start_segment_id]
+                        > segment_positions[evaluation.end_segment_id]
+                    ):
+                        raise ValueError(
+                            "Gemini returned reversed clip boundaries."
+                        )
 
                 evaluations.append(evaluation)
 
