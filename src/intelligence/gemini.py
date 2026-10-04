@@ -166,12 +166,15 @@ A strong candidate should:
    - an interesting story
    - a strong opinion
    - an unusual or memorable moment
-4. Require as little outside context as possible.
-5. Feel natural as a standalone excerpt.
+6. Require as little outside context as possible.
+7. Feel natural as a standalone excerpt.
 
 Do NOT favor a candidate merely because it is short.
 Do NOT force every clip into a fixed duration.
 Do NOT optimize solely for "virality".
+Do NOT extend a clip just to approach a target duration.
+The candidate window is only a search region; you must refine its
+actual start and end.
 
 Evaluate EVERY candidate from 0.0 to 10.0.
 
@@ -229,16 +232,8 @@ Boundary rules:
                     score=float(item["score"]),
                     reason=str(item.get("reason", "")),
                     suggested_title=item.get("suggested_title"),
-                    start_segment_id=(
-                        int(item["start_segment_id"])
-                        if item.get("start_segment_id") is not None
-                        else None
-                    ),
-                    end_segment_id=(
-                        int(item["end_segment_id"])
-                        if item.get("end_segment_id") is not None
-                        else None
-                    ),
+                    start_segment_id=int(item["start_segment_id"]),
+                    end_segment_id=int(item["end_segment_id"]),
                 )
 
                 if not 0.0 <= evaluation.score <= 10.0:
