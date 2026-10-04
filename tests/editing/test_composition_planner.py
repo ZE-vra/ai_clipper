@@ -10,11 +10,11 @@ def test_composition_planner_creates_vertical_blurred_background_plan():
     assert plan.canvas.height == 1920
 
     assert plan.background.source == "same_video"
-    assert plan.background.blur_radius == 32.0
+    assert plan.background.blur_radius == 48.0
     assert plan.background.brightness == 0.58
 
     assert plan.foreground.preserve_aspect_ratio is True
-    assert plan.foreground.scale == 1.0
+    assert plan.foreground.scale == 1.12
 
 
 def test_composition_planner_accepts_custom_configuration():
