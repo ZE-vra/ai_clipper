@@ -484,9 +484,9 @@ Write a natural social-media caption that adds context or curiosity.
 Briefly explain what happens in the clip.
 
 10. THUMBNAIL TEXT
-Create short thumbnail text.
-
-Prefer 2-6 words.
+Create high-curiosity thumbnail text in 2-5 words (ideally 2-4), readable instantly on a phone.
+Use a concrete detail, unusual consequence, specific contradiction, hidden reason, or an unanswered question grounded in this clip. Make the viewer ask “why?”, “how?”, or “what happened next?” without answering the question in the text.
+Avoid generic hype, vague pronouns, empty superlatives, and bland summaries. Do not use “You won't believe”, “Insane”, “Crazy”, “Wait for it”, or fake stakes unless the transcript specifically supports them. Never invent money, danger, reactions, outcomes, or promises. Do not simply repeat the title. Prefer a sharp curiosity gap over an explanation.
 
 11. CONTENT ANGLE
 Identify the strongest genuine angle of the clip.
