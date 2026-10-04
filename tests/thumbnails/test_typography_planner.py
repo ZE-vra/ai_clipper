@@ -156,3 +156,4 @@ def test_shorts_portrait_uses_large_attention_grabbing_headline_scale() -> None:
     assert plan.blocks[0].text_bounds.top >= 0.04
     assert plan.blocks[0].text_bounds.bottom <= 0.30
     assert plan.blocks[0].color == "#FFD700"
+    assert plan.blocks[0].stroke_width >= 7
