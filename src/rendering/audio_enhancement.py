@@ -8,7 +8,7 @@ AUDIO_ENHANCEMENT_FILTER = (
     "highpass=f=70,"
     "lowpass=f=16000,"
     "acompressor="
-    "threshold=-18dB:"
+    "threshold=0.126:"
     "ratio=2:"
     "attack=20:"
     "release=120,"
