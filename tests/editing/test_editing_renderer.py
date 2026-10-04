@@ -80,6 +80,13 @@ def test_renderer_builds_vertical_composition_command(tmp_path):
 
     assert command[0] == "ffmpeg"
     assert "-filter_complex" in command
+    assert "-af" in command
+
+    audio_filter = command[command.index("-af") + 1]
+    assert "highpass=f=70" in audio_filter
+    assert "lowpass=f=16000" in audio_filter
+    assert "acompressor=" in audio_filter
+    assert "loudnorm=" in audio_filter
 
     filter_complex = command[
         command.index("-filter_complex") + 1
