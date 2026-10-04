@@ -201,6 +201,9 @@ class TypographyPlanner:
         # when the actual text region requires it.
         is_portrait_shorts = canvas_height > canvas_width and canvas_width / canvas_height <= 0.75
         scale = 1.05 if is_portrait_shorts else 1.0
+        # A heavier dark outline gives gold Shorts headlines a stronger,
+        # sticker-like edge on busy footage without changing other targets.
+        stroke_width = max(self.config.stroke_width, 7) if is_portrait_shorts else self.config.stroke_width
 
         while scale >= minimum_scale - 0.0001:
             drafts: list[tuple[CopyBlock, int, str, float]] = []
@@ -212,7 +215,7 @@ class TypographyPlanner:
                 # Reserve horizontal space for the renderer's text stroke;
                 # Pillow includes the stroke in its rendered text bounds.
                 # Leave a small extra margin for integer pixel-bound rounding in the renderer.
-                text_width = width - (2 * self.config.stroke_width) - 2
+                text_width = width - (2 * stroke_width) - 2
                 if text_width <= 0:
                     fits = False
                     break
@@ -229,7 +232,7 @@ class TypographyPlanner:
                     weight=self.config.weight,
                 )
 
-                if measured.width + (2 * self.config.stroke_width) > width - 1.0:
+                if measured.width + (2 * stroke_width) > width - 1.0:
                     fits = False
                     break
 
@@ -240,7 +243,7 @@ class TypographyPlanner:
                 block_height = (
                     line_height * (len(lines) - 1)
                     + measured.height
-                    + (2 * self.config.stroke_width)
+                    + (2 * stroke_width)
                 )
                 drafts.append((block, size, rendered, block_height))
                 total += block_height
@@ -294,7 +297,7 @@ class TypographyPlanner:
                                 line_spacing=self.config.line_spacing,
                                 rendered_text=rendered,
                                 stroke_color=self.config.stroke_color,
-                                stroke_width=self.config.stroke_width,
+                                stroke_width=stroke_width,
                             )
                         )
 
