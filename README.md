@@ -1,132 +1,179 @@
 # AI Clipper
 
-An automated, checkpointed video-clipping pipeline that transforms long-form video into publishable short-form clips.
+**Turn a long-form video into ready-to-publish short-form clips—with captions, titles, metadata, and custom thumbnails.**
 
-The system combines deterministic media processing with AI-assisted content analysis while maintaining clear stage boundaries, persisted checkpoints, validation, retry handling, and resumable execution.
+AI Clipper is a checkpointed Python pipeline for extracting engaging moments from YouTube videos or local video files. It combines AI-assisted editorial decisions with deterministic media processing, validation, and resumable execution.
 
-## What It Does
+## Highlights
 
-Given a video source, the pipeline can:
+- **End-to-end CLI:** provide a YouTube URL or local video and run the pipeline.
+- **Transcript-driven discovery:** Whisper transcription feeds candidate generation and clip evaluation.
+- **Editorial selection:** Gemini evaluates candidate moments; a deterministic planner selects the final clips.
+- **Vertical video rendering:** FFmpeg-based rendering and caption burning for short-form platforms.
+- **Publishing package:** generates per-clip titles, hooks, thumbnail copy, and content angles.
+- **Thumbnail V2:** composes a thumbnail for each clip using its saved package and local frame analysis.
+- **Resumable by design:** persists stage artifacts and reuses valid checkpoints to avoid repeating expensive work.
+- **Graceful partial failure:** a thumbnail failure does not discard an otherwise successful rendered clip.
 
-1. Ingest the source and extract audio
-2. Transcribe the audio using Whisper
-3. Discover candidate clip windows from the transcript
-4. Evaluate candidates using Gemini
-5. Select clips through a deterministic planning stage
-6. Acquire the required video sections
-7. Render base clips with FFmpeg
-8. Convert clips into vertical social-video format
-9. Generate and burn captions into the video
-10. Generate publishing metadata using Gemini
-11. Generate a V2 thumbnail from the existing per-clip packaging, using local frame analysis and rendering
-12. Persist clips, packaging, and thumbnail checkpoints for resumable execution
-
-The goal is not simply to generate clips, but to build a reliable pipeline that can recover from failures without unnecessarily repeating expensive work.
-
-## Architecture
+## Pipeline
 
 ```text
-CLI
- ↓
-PipelineOrchestrator
- ↓
-Source / Workspace
- ↓
-Audio Ingestion
- ↓
-Whisper
- ↓
-transcript.json
- ↓
-Candidate Generation
- ↓
-candidates.json
- ↓
-GeminiDirector
- ↓
-evaluations.json
- ↓
-ClipPlanner
- ↓
-clip_plan.json
- ↓
-Source Acquisition
- ↓
-Local Section
- ↓
-FFmpegRenderer
- ↓
-Base Render
- ↓
-EditingPlanner
- ↓
-EditingRenderer
- ↓
-Final Vertical Clip
- ↓
-GeminiPackager
- ↓
-Packaging JSON
- ↓
-ThumbnailV2Stage (reuses packaging; no additional Gemini request)
- ↓
-Local frame discovery / composition / rendering
- ↓
-projects/<project_id>/thumbnails/clip_XX_thumbnail.jpg
+YouTube URL or local video
+          |
+          v
+     Ingestion ──> Audio extraction
+          |                |
+          |             Whisper
+          |                |
+          v                v
+    Workspace         Transcript
+                           |
+                           v
+                Candidate generation
+                           |
+                           v
+                 Gemini evaluation
+                           |
+                           v
+                 Deterministic planner
+                           |
+                           v
+                 Clip acquisition
+                           |
+                           v
+                  FFmpeg rendering
+                           |
+                           v
+              Vertical edit + captions
+                           |
+                           v
+                 Gemini packaging
+                           |
+                           v
+                 Thumbnail V2 (local)
+                           |
+                           v
+          Clips + metadata + thumbnails
 ```
 
-The main `python cli.py <source>` workflow generates thumbnails after per-clip packaging. V2 reuses the packaging's title, hook, thumbnail text, and content angle, then performs frame extraction, perception, composition, rendering, and evaluation locally. It does **not** call Gemini again for thumbnail understanding. Valid thumbnail files are checkpointed and reused on resume. Thumbnail failure does not invalidate an otherwise successful clip.
+The thumbnail stage reuses each clip's saved packaging and makes **no additional Gemini request**. Thumbnail work is checkpointed and reused when valid.
 
-## Regenerate a thumbnail without rerunning the pipeline
+## Quick start
 
-After the main clipper has created the project's source-section and packaging checkpoints, regenerate just one Shorts thumbnail:
+### Requirements
+
+- Python 3.10+ (use the Python version supported by your installed dependencies)
+- FFmpeg and FFprobe available on `PATH`
+- A Gemini API key
+- Internet access for YouTube sources
+- Whisper model weights on first transcription (downloaded by Whisper as needed)
+
+### Install
+
+Windows PowerShell:
 
 ```powershell
-python -m src.thumbnails.project_cli "path/to/the/original-video.mp4" --clip-id 1
+git clone https://github.com/ZE-vra/ai_clipper.git
+cd ai_clipper
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-Use the exact same local video path or YouTube URL used for the original run. Change `--clip-id` to select another clip. Optional flags include `--samples 15` for more sampled frames or `--output path/to/preview.jpg` to save a separate comparison image. By default, this replaces that clip's thumbnail checkpoint. The command loads the existing source section and packaging JSON directly; it does not run Whisper, Gemini, clip selection, packaging, or video rendering. It fails clearly if the required saved artifacts are missing rather than starting the full pipeline.
+Create a `.env` file in the repository root:
+
+```dotenv
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+### Run the full pipeline
+
+```powershell
+python cli.py "https://www.youtube.com/watch?v=YOUR_VIDEO_ID"
+```
+
+You can also pass a local video path:
+
+```powershell
+python cli.py "C:\\path\\to\\video.mp4"
+```
+
+The CLI prints the selected clips and their output paths. Project artifacts are stored under `projects/`; this generated workspace is intentionally excluded from version control.
+
+## Regenerate one thumbnail
+
+Once the pipeline has created the project's source-section and packaging checkpoints, regenerate a thumbnail without rerunning transcription, clip selection, packaging, or video rendering:
+
+```powershell
+python -m src.thumbnails.project_cli "https://www.youtube.com/watch?v=YOUR_VIDEO_ID" --clip-id 1
+```
+
+Useful options:
+
+- `--clip-id N`: choose the clip.
+- `--samples 15`: sample more frames for discovery.
+- `--output path/to/preview.jpg`: save a separate preview rather than replacing the checkpoint.
+
+The command requires the saved artifacts from the original run. It does not silently start the full pipeline if those artifacts are missing.
 
 ## Thumbnail V2 standalone tools
 
-The dedicated V2 CLI remains available for experimentation and for cases where you want to provide a custom JSON request or generate a brief from a transcript. These standalone modes are separate from the integrated main pipeline.
-
-### Run
+For experiments independent of the main clipper, the V2 CLI accepts a structured request:
 
 ```powershell
 python -m src.thumbnails.cli path/to/input.mp4 --input examples/thumbnail_v2_request.json --output output/thumbnail.jpg
 ```
 
-FFmpeg and FFprobe must be installed and available on `PATH`. Use `--ffmpeg` and `--ffprobe` to specify alternate executable paths. The output and working directories are created automatically when needed.
-
-To enable person segmentation and subject-cutout composition, pass a **local** Ultralytics segmentation checkpoint:
-
-```powershell
-python -m src.thumbnails.cli path/to/input.mp4 --input examples/thumbnail_v2_request.json --output output/thumbnail.jpg --subject-model path/to/local-segmentation-checkpoint.pt
-```
-
-The CLI does not download model weights implicitly. Without `--subject-model`, it can use source-frame and enhanced-frame strategies but makes no semantic subject-detection claims.
-
-The request schema is illustrated in [examples/thumbnail_v2_request.json](examples/thumbnail_v2_request.json). The `brief` and `understanding` sections are required in JSON mode; `target` is optional and defaults to a 1280×720 YouTube target. Times in events are seconds from the start of the source video.
-
-### Generate the brief from a transcript
-
-Instead of hand-authoring the JSON, provide a transcript text file. V2 uses Gemini to create the brief and structured content understanding, then continues through the same thumbnail pipeline:
+It also supports transcript input or automatic transcription:
 
 ```powershell
 python -m src.thumbnails.cli path/to/input.mp4 --transcript path/to/transcript.txt --output output/thumbnail.jpg
-```
-
-Set `GEMINI_API_KEY` in the environment. This mode requires the Google GenAI SDK. The generated understanding is grounded in transcript text; it cannot establish visual facts that the transcript does not contain. Use `--input` when you already have reviewed, structured inputs. The two input modes are mutually exclusive.
-
-### Transcribe the video automatically
-
-For a fully local transcription step, let Whisper read the source video directly and pass its transcript to Gemini:
-
-```powershell
 python -m src.thumbnails.cli path/to/input.mp4 --auto-transcribe --output output/thumbnail.jpg
 ```
 
-This requires OpenAI Whisper, FFmpeg, and `GEMINI_API_KEY`. The default Whisper model is `base`; choose another installed/downloadable Whisper model with `--whisper-model small`, and optionally set `--language en`. Whisper may download its model weights on first use. The CLI does not download the optional YOLO subject-segmentation checkpoint.
+Transcript-driven modes require `GEMINI_API_KEY` and the Google GenAI SDK. Automatic transcription requires Whisper and FFmpeg. The optional subject-segmentation checkpoint must be supplied locally with `--subject-model`; the CLI does not silently download YOLO weights.
 
-This standalone entry point is intended for manual V2 experiments; the main clipper CLI already runs V2 using saved packaging so it does not repeat the content-understanding API request.
+## Tests
+
+Run the thumbnail test suite:
+
+```powershell
+python -m pytest tests/thumbnails -v
+```
+
+Run the broader test suite:
+
+```powershell
+python -m pytest -v
+```
+
+GitHub Actions runs focused regression tests for the thumbnail subsystem and related pipeline integration.
+
+## Repository layout
+
+- `src/ingestion/` — source ingestion and audio extraction
+- `src/perception/` — transcription
+- `src/candidates/` — candidate clip-window generation
+- `src/intelligence/` — AI-assisted candidate evaluation
+- `src/planning/` — deterministic clip selection
+- `src/editing/` — edit planning and rendering
+- `src/packaging/` — publishing metadata and persistence
+- `src/thumbnails/` — Thumbnail V2 domain, intelligence, layout, rendering, evaluation, and pipeline integration
+- `tests/` — unit and integration tests
+- `examples/` — example inputs for the standalone thumbnail workflow
+
+## Design principles
+
+1. Use AI for editorial judgment, not routine media execution.
+2. Keep rendering, geometry, validation, and persistence deterministic.
+3. Persist checkpoints so interrupted runs can resume safely.
+4. Keep providers replaceable and responsibilities modular.
+5. Prefer explicit failure and recovery behavior over silent data loss.
+
+## Current limitations
+
+- AI-generated editorial decisions and publishing copy still require human review before publishing.
+- Output quality depends on source audio/video quality, transcript accuracy, and the chosen moments.
+- Thumbnail subject segmentation is optional and requires a compatible local model checkpoint.
+- Platform performance cannot be guaranteed by the pipeline; validate results with real audience data.
