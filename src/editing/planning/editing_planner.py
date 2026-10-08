@@ -100,4 +100,10 @@ class EditingPlanner:
             composition=composition,
             captions=captions,
             render_config=self.render_config,
+            audio=music,
+            clip_duration=(
+                clip_end_time - clip_start_time
+                if clip_end_time is not None
+                else None
+            ),
         )
