@@ -1,17 +1,90 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from src.rendering.music.catalog import MusicCatalog
 from src.rendering.music.models import MusicPlan, MusicTrack
 
 
 MOOD_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "tension": ("crisis", "risk", "failed", "failure", "collapse", "mistake", "danger", "lost", "bankrupt", "problem"),
-    "motivational": ("success", "growth", "million", "built", "won", "lesson", "achievement", "breakthrough"),
-    "energetic": ("launch", "marketing", "sales", "strategy", "fast", "scale", "startup", "hustle"),
-    "emotional": ("family", "dream", "struggle", "sacrifice", "journey", "personal"),
-    "corporate": ("company", "business", "ceo", "founder", "revenue", "startup", "entrepreneur"),
+    "tension": (
+        "crisis",
+        "risk",
+        "failed",
+        "failure",
+        "collapse",
+        "mistake",
+        "danger",
+        "lost",
+        "bankrupt",
+        "problem",
+        "nearly lost",
+    ),
+    "motivational": (
+        "success",
+        "growth",
+        "million",
+        "built",
+        "won",
+        "lesson",
+        "achievement",
+        "breakthrough",
+        "inspiring",
+    ),
+    "energetic": (
+        "launch",
+        "marketing",
+        "sales",
+        "strategy",
+        "fast",
+        "scale",
+        "startup",
+        "hustle",
+        "promo",
+        "commercial",
+    ),
+    "emotional": (
+        "family",
+        "dream",
+        "struggle",
+        "sacrifice",
+        "journey",
+        "personal",
+        "story",
+        "emotional",
+    ),
+    "corporate": (
+        "company",
+        "business",
+        "ceo",
+        "founder",
+        "revenue",
+        "startup",
+        "entrepreneur",
+        "corporate",
+        "brand",
+    ),
+    "technology": (
+        "technology",
+        "tech",
+        "software",
+        "ai",
+        "innovation",
+        "engineering",
+    ),
+    "luxury": (
+        "luxury",
+        "premium",
+        "elegant",
+    ),
+    "voice_safe": (
+        "interview",
+        "podcast",
+        "voiceover",
+        "voice over",
+        "talking",
+        "dialogue",
+        "speaking",
+        "vlog",
+    ),
 }
 
 
@@ -28,18 +101,31 @@ class MusicSelector:
 
         text = f"{title or ''} {reason}".lower()
         scores: list[tuple[float, MusicTrack]] = []
+
         for track in tracks:
             score = 0.0
+
             for mood in track.moods:
-                if mood in MOOD_KEYWORDS:
-                    score += sum(1.0 for keyword in MOOD_KEYWORDS[mood] if keyword in text)
-                if mood in text:
+                keywords = MOOD_KEYWORDS.get(mood, ())
+                score += sum(1.0 for keyword in keywords if keyword in text)
+
+                # A filename-derived mood that directly appears in the content
+                # is a strong signal, while not requiring an exact folder match.
+                if mood != "neutral" and mood in text:
                     score += 2.0
+
+            # Voice-safe tracks are a useful fallback for talking-head content,
+            # but should not overpower a stronger narrative match.
+            if "voice_safe" in track.moods:
+                score += 0.15
+
             if not track.moods or track.moods == ("neutral",):
                 score += 0.1
+
             scores.append((score, track))
 
-        scores.sort(key=lambda item: (-item[0], item[1].track_id))
+        # Deterministic tie-breaking keeps renders reproducible.
+        scores.sort(key=lambda item: (-item[0], item[1].track_id.lower()))
         return scores[0][1]
 
 
