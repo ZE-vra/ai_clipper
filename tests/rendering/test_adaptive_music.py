@@ -117,3 +117,7 @@ def test_renderer_adds_music_input_and_maps_final_audio(tmp_path):
     assert str(music_path) in command
     assert "[final_audio]" in command[command.index("-filter_complex") + 1]
     assert command[command.index("-map", command.index("[final]")) + 1] == "[final_audio]"
+
+
+def test_music_catalog_default_root_is_editing_assets_folder():
+    assert MusicCatalog.DEFAULT_ROOT == Path(r"C:\Editing_Assets\Background_Music")
