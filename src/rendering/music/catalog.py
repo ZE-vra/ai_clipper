@@ -134,7 +134,7 @@ class MusicCatalog:
     descriptive filenames rather than requiring subdirectories.
     """
 
-    DEFAULT_ROOT = Path(r"C:Editing_AssetsBackground_Music")
+    DEFAULT_ROOT = Path(r"C:\Editing_Assets\Background_Music")
 
     def __init__(self, root: Path | str | None = None) -> None:
         self.root = Path(root) if root is not None else self.DEFAULT_ROOT
