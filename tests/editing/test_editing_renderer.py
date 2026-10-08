@@ -92,6 +92,9 @@ def test_renderer_builds_vertical_composition_command(tmp_path):
     assert "eq=brightness=-0.42000000000000004" in filter_complex
     assert "overlay=(W-w)/2:(H-h)/2" in filter_complex
     assert "subtitles=" in filter_complex
+    assert "[final_audio]" in filter_complex
+    assert "-map" in command
+    assert "[final_audio]" in command
 
     assert caption_file is not None
     assert caption_file.exists()
