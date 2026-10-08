@@ -1,6 +1,6 @@
 # Background music assets
 
-Place music you are licensed to use under one of these folders:
+By default, the pipeline scans `C:\\Editing_Assets\\Background_Music`. Place music you are licensed to use there, optionally organized into these mood folders:
 
 - `assets/music/tension/`
 - `assets/music/motivational/`
