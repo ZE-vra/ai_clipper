@@ -11,8 +11,12 @@ SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 class MusicCatalog:
     """Discover locally supplied, licensed music assets."""
 
-    def __init__(self, root: Path | str = Path("assets/music")) -> None:
-        self.root = Path(root)
+    DEFAULT_ROOT = Path(r"C:\Editing_Assets\Background_Music")
+
+    def __init__(self, root: Path | str | None = None) -> None:
+        # The user's editing-asset library is the production default. An explicit
+        # root remains supported for tests and alternate deployments.
+        self.root = Path(root) if root is not None else self.DEFAULT_ROOT
 
     def tracks(self) -> list[MusicTrack]:
         if not self.root.exists():
