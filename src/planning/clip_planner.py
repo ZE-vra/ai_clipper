@@ -24,7 +24,7 @@ class ClipPlanner:
     def __init__(
         self,
         min_score: float = 7.0,
-        max_clips: int = 10,
+        max_clips: int = 3,
         min_duration: float = 15.0,
         max_duration: float = 180.0,
         overlap_threshold: float = 0.5,
