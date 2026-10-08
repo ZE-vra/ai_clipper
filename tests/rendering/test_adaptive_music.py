@@ -42,6 +42,35 @@ def test_music_catalog_discovers_tracks_by_mood_folder(tmp_path):
     assert tracks[0].moods == ("tension",)
 
 
+
+def test_music_catalog_infers_moods_from_flat_filenames(tmp_path):
+    (tmp_path / "14 - Motivational Corporate BGM - Inspiring Music for Business.wav").write_bytes(b"fake")
+    (tmp_path / "11 - Storytelling Music - Touching Cinematic Music.wav").write_bytes(b"fake")
+    (tmp_path / "42 - Interview background music while talking.wav").write_bytes(b"fake")
+
+    tracks = MusicCatalog(tmp_path).tracks()
+    by_id = {track.track_id: track for track in tracks}
+
+    assert "motivational" in by_id["14 - Motivational Corporate BGM - Inspiring Music for Business"].moods
+    assert "corporate" in by_id["14 - Motivational Corporate BGM - Inspiring Music for Business"].moods
+    assert "emotional" in by_id["11 - Storytelling Music - Touching Cinematic Music"].moods
+    assert "voice_safe" in by_id["42 - Interview background music while talking"].moods
+
+
+def test_music_selector_uses_flat_filename_semantics(tmp_path):
+    (tmp_path / "03 - Professional Music - Corporate Content.wav").write_bytes(b"fake")
+    (tmp_path / "47 - Motivational Epic.wav").write_bytes(b"fake")
+    (tmp_path / "42 - Interview background music while talking.wav").write_bytes(b"fake")
+
+    selector = MusicSelector(MusicCatalog(tmp_path))
+    selected = selector.select(
+        title="The Founder Who Built a Billion Dollar Business",
+        reason="The entrepreneur explains how the company grew from nothing.",
+    )
+
+    assert selected is not None
+    assert "corporate" in selected.moods
+
 def test_music_selector_prefers_matching_mood(tmp_path):
     for mood in ("tension", "motivational"):
         directory = tmp_path / mood
