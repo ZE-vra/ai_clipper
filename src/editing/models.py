@@ -89,3 +89,5 @@ class EditingPlan:
     composition: CompositionPlan
     captions: CaptionPlan
     render_config: RenderConfig
+    audio: MusicPlan = field(default_factory=MusicPlan)
+    clip_duration: float | None = None
