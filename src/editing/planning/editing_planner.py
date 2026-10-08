@@ -54,6 +54,8 @@ class EditingPlanner:
         transcript: Transcript,
         clip_start_time: float = 0.0,
         clip_end_time: float | None = None,
+        content_reason: str = "",
+        title: str | None = None,
     ) -> EditingPlan:
         if not clip_id.strip():
             raise ValueError(
@@ -89,8 +91,8 @@ class EditingPlanner:
         )
 
         music = self.music_planner.create_plan(
-            title=clip_id,
-            reason="business entrepreneurship short",
+            title=title,
+            reason=content_reason,
         )
 
         return EditingPlan(
