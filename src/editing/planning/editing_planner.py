@@ -3,6 +3,7 @@ from __future__ import annotations
 from src.editing.models import EditingPlan, RenderConfig
 from src.editing.planning.caption_planner import CaptionPlanner
 from src.editing.planning.composition_planner import CompositionPlanner
+from src.rendering.music.selector import MusicPlanner
 from src.schemas import Transcript
 
 
@@ -24,6 +25,7 @@ class EditingPlanner:
         composition_planner: CompositionPlanner | None = None,
         caption_planner: CaptionPlanner | None = None,
         render_config: RenderConfig | None = None,
+        music_planner: MusicPlanner | None = None,
     ) -> None:
         self.composition_planner = (
             composition_planner
@@ -40,6 +42,11 @@ class EditingPlanner:
             or RenderConfig()
         )
 
+        self.music_planner = (
+            music_planner
+            or MusicPlanner()
+        )
+
     def create_plan(
         self,
         *,
@@ -47,6 +54,8 @@ class EditingPlanner:
         transcript: Transcript,
         clip_start_time: float = 0.0,
         clip_end_time: float | None = None,
+        content_reason: str = "",
+        title: str | None = None,
     ) -> EditingPlan:
         if not clip_id.strip():
             raise ValueError(
@@ -79,6 +88,11 @@ class EditingPlanner:
                 clip_start_time=clip_start_time,
                 clip_end_time=clip_end_time,
             )
+        )
+
+        music = self.music_planner.create_plan(
+            title=title,
+            reason=content_reason,
         )
 
         return EditingPlan(

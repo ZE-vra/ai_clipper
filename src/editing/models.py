@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from src.rendering.music.models import MusicPlan
+
 
 @dataclass(frozen=True)
 class CanvasPlan:

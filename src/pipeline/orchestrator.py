@@ -604,6 +604,8 @@ class PipelineOrchestrator:
                     clip_end_time=(
                         decision.snapped_end_time
                     ),
+                    content_reason=decision.reason,
+                    title=decision.title,
                 )
             )
 

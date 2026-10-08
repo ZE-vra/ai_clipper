@@ -5,6 +5,10 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from src.editing.models import EditingPlan
+from src.rendering.audio_enhancement import (
+    final_master_filter,
+    speech_enhancement_filter,
+)
 from src.exceptions import ClipperError
 
 
@@ -151,22 +155,10 @@ class EditingRenderer:
                 f"{details}"
             )
 
-    def _build_command(
-        self,
-        *,
-        source_path: Path,
-        output_path: Path,
-        plan: EditingPlan,
-    ) -> tuple[list[str], Path | None]:
-        """
-        Build the FFmpeg command for an EditingPlan.
-
-        Returns the command and an optional temporary subtitle file.
-        """
-
+    def _build_command(self, *, source_path: Path, output_path: Path, plan: EditingPlan) -> tuple[list[str], Path | None]:
+        """Build the FFmpeg command for video composition and final audio."""
         canvas = plan.composition.canvas
         background = plan.composition.background
-
         foreground = plan.composition.foreground
         foreground_width = round(canvas.width * foreground.scale)
         foreground_height = round(canvas.height * foreground.scale)
@@ -175,86 +167,78 @@ class EditingRenderer:
             "[0:v]split=2[background][foreground]",
             (
                 "[background]"
-                f"scale={canvas.width}:{canvas.height}:"
-                "force_original_aspect_ratio=increase,"
-                f"crop={canvas.width}:{canvas.height},"
-                f"boxblur={background.blur_radius}:1,"
-                f"eq=brightness={background.brightness - 1.0}"
-                "[background_processed]"
+                f"scale={canvas.width}:{canvas.height}:force_original_aspect_ratio=increase,"
+                f"crop={canvas.width}:{canvas.height},boxblur={background.blur_radius}:1,"
+                f"eq=brightness={background.brightness - 1.0}[background_processed]"
             ),
             (
                 "[foreground]"
-                f"scale={foreground_width}:{foreground_height}:"
-                "force_original_aspect_ratio=decrease"
+                f"scale={foreground_width}:{foreground_height}:force_original_aspect_ratio=decrease"
                 "[foreground_scaled]"
             ),
-            (
-                "[background_processed][foreground_scaled]"
-                "overlay="
-                "(W-w)/2:"
-                "(H-h)/2"
-                "[composed]"
-            ),
+            "[background_processed][foreground_scaled]overlay=(W-w)/2:(H-h)/2[composed]",
         ]
-
         current_video_label = "[composed]"
         caption_file: Path | None = None
-
         if plan.captions.enabled and plan.captions.segments:
-            caption_file = self._create_ass_file(
-                plan=plan,
-                output_directory=output_path.parent,
-            )
-
-            subtitle_path = self._escape_filter_path(
-                caption_file
-            )
-
-            filter_parts.append(
-                f"{current_video_label}"
-                f"subtitles='{subtitle_path}'"
-                "[captioned]"
-            )
-
+            caption_file = self._create_ass_file(plan=plan, output_directory=output_path.parent)
+            subtitle_path = self._escape_filter_path(caption_file)
+            filter_parts.append(f"{current_video_label}subtitles='{subtitle_path}'[captioned]")
             current_video_label = "[captioned]"
-
-        filter_parts.append(
-            f"{current_video_label}"
-            "setsar=1"
-            "[final]"
-        )
-
+        filter_parts.append(f"{current_video_label}setsar=1[final]")
+        filter_parts.append(self._build_audio_filter(plan))
         filter_complex = ";".join(filter_parts)
 
         render = plan.render_config
+        command = [self.ffmpeg_path, "-y", "-i", str(source_path)]
+        music = plan.audio
+        if music.enabled and music.track is not None:
+            if not music.track.path.exists():
+                raise EditingRenderingError(f"Configured music track does not exist: {music.track.path}")
+            command.extend(["-stream_loop", "-1", "-i", str(music.track.path)])
 
-        command = [
-            self.ffmpeg_path,
-            "-y",
-            "-i",
-            str(source_path),
-            "-filter_complex",
-            filter_complex,
-            "-map",
-            "[final]",
-            "-map",
-            "0:a:0",
-            "-c:v",
-            render.video_codec,
-            "-preset",
-            "fast",
-            "-crf",
-            str(render.crf),
-            "-c:a",
-            render.audio_codec,
-            "-b:a",
-            render.audio_bitrate,
-            "-movflags",
-            "+faststart",
+        command.extend([
+            "-filter_complex", filter_complex,
+            "-map", "[final]",
+            "-map", "[final_audio]",
+            "-c:v", render.video_codec,
+            "-preset", "fast",
+            "-crf", str(render.crf),
+            "-c:a", render.audio_codec,
+            "-b:a", render.audio_bitrate,
+            "-movflags", "+faststart",
             str(output_path),
-        ]
-
+        ])
         return command, caption_file
+
+    @staticmethod
+    def _build_audio_filter(plan: EditingPlan) -> str:
+        """Build voice enhancement, optional ducking, mixing, and mastering."""
+        voice_filter = speech_enhancement_filter()
+        master_filter = final_master_filter()
+        music = plan.audio
+        if not music.enabled or music.track is None:
+            return f"[0:a]{voice_filter},{master_filter}[final_audio]"
+
+        music_filters = [f"volume={music.volume_db}dB"]
+        if plan.clip_duration is not None and plan.clip_duration > 0:
+            fade_out_start = max(0.0, plan.clip_duration - music.fade_out_seconds)
+            music_filters.extend([
+                f"afade=t=in:st=0:d={music.fade_in_seconds}",
+                f"afade=t=out:st={fade_out_start}:d={music.fade_out_seconds}",
+            ])
+
+        return ";".join([
+            f"[0:a]{voice_filter}[voice]",
+            f"[1:a]{','.join(music_filters)}[music]",
+            (
+                "[music][voice]sidechaincompress="
+                f"threshold={music.ducking_threshold}:ratio={music.ducking_ratio}:"
+                f"attack={music.ducking_attack_ms}:release={music.ducking_release_ms}:detection=rms"
+                "[ducked_music]"
+            ),
+            f"[voice][ducked_music]amix=inputs=2:duration=first:dropout_transition=0,{master_filter}[final_audio]",
+        ])
 
     @staticmethod
     def _create_ass_file(
