@@ -405,8 +405,20 @@ class PipelineOrchestrator:
                 "Clip-plan checkpoint found. Loading..."
             )
 
-            return load_clip_manifest(
+            clip_manifest = load_clip_manifest(
                 workspace
+            )
+
+            # A planner configuration change must invalidate older clip
+            # plans so legacy projects do not keep rendering an excessive
+            # number of finalists.
+            max_clips = getattr(self.planner, "max_clips", None)
+            if max_clips is None or len(clip_manifest.selected_clips) <= max_clips:
+                return clip_manifest
+
+            print(
+                f"Existing clip plan contains {len(clip_manifest.selected_clips)} "
+                f"clips; replanning with max_clips={max_clips}..."
             )
 
         print(
